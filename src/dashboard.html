@@ -502,6 +502,12 @@
             border: 1px solid rgba(16, 185, 129, 0.2);
         }
 
+        .badge-ignored {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--color-danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
         /* Toast Notifications */
         .toast-container {
             position: fixed;
@@ -675,6 +681,7 @@
                         <button class="filter-tab" onclick="setFilter('pending', this)">Pending</button>
                         <button class="filter-tab" onclick="setFilter('outreached', this)">Outreached</button>
                         <button class="filter-tab" onclick="setFilter('engaged', this)">Engaged</button>
+                        <button class="filter-tab" onclick="setFilter('ignored', this)">Ignored</button>
                     </div>
                 </div>
 
@@ -848,6 +855,7 @@
                 let badgeClass = 'badge-pending';
                 if (lead.status === 'outreached') badgeClass = 'badge-outreached';
                 if (lead.status === 'engaged') badgeClass = 'badge-engaged';
+                if (lead.status === 'ignored' || lead.status === 'no_email') badgeClass = 'badge-ignored';
                 
                 return `
                     <tr>
