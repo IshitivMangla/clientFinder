@@ -23,6 +23,8 @@ SEARCH_QUERY = os.getenv("SEARCH_QUERY", "restaurant hotel")
 SEARCH_LOCATION = os.getenv("SEARCH_LOCATION")
 SEARCH_RADIUS = int(os.getenv("SEARCH_RADIUS") or 5000)
 
+VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() != "false"
+
 SEND_EMAIL = os.getenv("SEND_EMAIL", "false").lower() == "true"
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() != "false"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")

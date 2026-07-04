@@ -1,6 +1,21 @@
+import httpx
 from openai import OpenAI
 from . import config
 from . import database
+
+def get_openai_client(base_url=None):
+    http_client = httpx.Client(verify=config.VERIFY_SSL)
+    if base_url:
+        return OpenAI(
+            base_url=base_url,
+            api_key=config.NVIDIA_API_KEY,
+            http_client=http_client
+        )
+    else:
+        return OpenAI(
+            api_key=config.OPENAI_API_KEY,
+            http_client=http_client
+        )
 
 def generate_reply(lead_name, lead_type, conversation_history, latest_reply):
     api_key = config.NVIDIA_API_KEY or config.OPENAI_API_KEY
@@ -19,15 +34,12 @@ def generate_reply(lead_name, lead_type, conversation_history, latest_reply):
         if config.NVIDIA_API_KEY:
             database.enforce_rate_limit("nvidia", 60)
             database.increment_api_usage("nvidia")
-            client = OpenAI(
-                base_url="https://integrate.api.nvidia.com/v1",
-                api_key=config.NVIDIA_API_KEY
-            )
+            client = get_openai_client(base_url="https://integrate.api.nvidia.com/v1")
             model = config.NVIDIA_MODEL
         else:
             database.enforce_rate_limit("openai", 60)
             database.increment_api_usage("openai")
-            client = OpenAI(api_key=config.OPENAI_API_KEY)
+            client = get_openai_client()
             model = "gpt-4o-mini"
         
         system_prompt = (
@@ -78,15 +90,12 @@ def classify_reply(latest_reply):
         if config.NVIDIA_API_KEY:
             database.enforce_rate_limit("nvidia", 60)
             database.increment_api_usage("nvidia")
-            client = OpenAI(
-                base_url="https://integrate.api.nvidia.com/v1",
-                api_key=config.NVIDIA_API_KEY
-            )
+            client = get_openai_client(base_url="https://integrate.api.nvidia.com/v1")
             model = config.NVIDIA_MODEL
         else:
             database.enforce_rate_limit("openai", 60)
             database.increment_api_usage("openai")
-            client = OpenAI(api_key=config.OPENAI_API_KEY)
+            client = get_openai_client()
             model = "gpt-4o-mini"
 
         system_prompt = (
@@ -135,15 +144,12 @@ def generate_outreach_email(lead_name, lead_type, lead_address):
         if config.NVIDIA_API_KEY:
             database.enforce_rate_limit("nvidia", 60)
             database.increment_api_usage("nvidia")
-            client = OpenAI(
-                base_url="https://integrate.api.nvidia.com/v1",
-                api_key=config.NVIDIA_API_KEY
-            )
+            client = get_openai_client(base_url="https://integrate.api.nvidia.com/v1")
             model = config.NVIDIA_MODEL
         else:
             database.enforce_rate_limit("openai", 60)
             database.increment_api_usage("openai")
-            client = OpenAI(api_key=config.OPENAI_API_KEY)
+            client = get_openai_client()
             model = "gpt-4o-mini"
 
         system_prompt = (
@@ -215,15 +221,12 @@ def generate_quote_email(lead_name, lead_type, conversation_history, latest_repl
         if config.NVIDIA_API_KEY:
             database.enforce_rate_limit("nvidia", 60)
             database.increment_api_usage("nvidia")
-            client = OpenAI(
-                base_url="https://integrate.api.nvidia.com/v1",
-                api_key=config.NVIDIA_API_KEY
-            )
+            client = get_openai_client(base_url="https://integrate.api.nvidia.com/v1")
             model = config.NVIDIA_MODEL
         else:
             database.enforce_rate_limit("openai", 60)
             database.increment_api_usage("openai")
-            client = OpenAI(api_key=config.OPENAI_API_KEY)
+            client = get_openai_client()
             model = "gpt-4o-mini"
 
         system_prompt = (
@@ -280,15 +283,12 @@ def generate_negotiation_email(lead_name, lead_type, conversation_history, lates
         if config.NVIDIA_API_KEY:
             database.enforce_rate_limit("nvidia", 60)
             database.increment_api_usage("nvidia")
-            client = OpenAI(
-                base_url="https://integrate.api.nvidia.com/v1",
-                api_key=config.NVIDIA_API_KEY
-            )
+            client = get_openai_client(base_url="https://integrate.api.nvidia.com/v1")
             model = config.NVIDIA_MODEL
         else:
             database.enforce_rate_limit("openai", 60)
             database.increment_api_usage("openai")
-            client = OpenAI(api_key=config.OPENAI_API_KEY)
+            client = get_openai_client()
             model = "gpt-4o-mini"
 
         system_prompt = (

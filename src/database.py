@@ -82,26 +82,56 @@ def init_db():
         conn.close()
 
 def add_lead(name, email, website, lead_type, address, source, status="pending"):
-    if not email:
-        return None
+    # Normalize empty or whitespace email to None
+    email_val = email.strip() if (email and email.strip()) else None
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("""
-        INSERT INTO leads (name, email, website, type, address, source, status)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT(email) DO UPDATE SET
-            name=coalesce(excluded.name, leads.name),
-            website=coalesce(excluded.website, leads.website),
-            type=coalesce(excluded.type, leads.type),
-            address=coalesce(excluded.address, leads.address),
-            updated_at=CURRENT_TIMESTAMP
-        """, (name, email, website, lead_type, address, source, status))
-        conn.commit()
-        # Get lead ID
-        cursor.execute("SELECT id FROM leads WHERE email = %s", (email,))
-        row = cursor.fetchone()
-        return row[0] if row else None
+        if email_val:
+            cursor.execute("""
+            INSERT INTO leads (name, email, website, type, address, source, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT(email) DO UPDATE SET
+                name=coalesce(excluded.name, leads.name),
+                website=coalesce(excluded.website, leads.website),
+                type=coalesce(excluded.type, leads.type),
+                address=coalesce(excluded.address, leads.address),
+                updated_at=CURRENT_TIMESTAMP
+            RETURNING id
+            """, (name, email_val, website, lead_type, address, source, status))
+            row = cursor.fetchone()
+            conn.commit()
+            return row[0] if row else None
+        else:
+            # Avoid inserting duplicates by checking name and address
+            if address:
+                cursor.execute("SELECT id FROM leads WHERE name = %s AND address = %s", (name, address))
+            else:
+                cursor.execute("SELECT id FROM leads WHERE name = %s AND address IS NULL", (name,))
+            row = cursor.fetchone()
+            if row:
+                lead_id = row[0]
+                # Update existing lead's fields
+                cursor.execute("""
+                UPDATE leads SET
+                    website=coalesce(%s, website),
+                    type=coalesce(%s, type),
+                    address=coalesce(%s, address),
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE id = %s
+                """, (website, lead_type, address, lead_id))
+                conn.commit()
+                return lead_id
+            else:
+                cursor.execute("""
+                INSERT INTO leads (name, email, website, type, address, source, status)
+                VALUES (%s, NULL, %s, %s, %s, %s, %s)
+                RETURNING id
+                """, (name, website, lead_type, address, source, status))
+                row = cursor.fetchone()
+                conn.commit()
+                return row[0] if row else None
     except psycopg2.Error as e:
         print(f"Database error adding lead: {e}")
         conn.rollback()

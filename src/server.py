@@ -26,6 +26,11 @@ active_tasks = {
     "find_leads": False,
     "outreach": False
 }
+cancel_requests = {
+    "check_replies": False,
+    "find_leads": False,
+    "outreach": False
+}
 
 # Outreach function helper
 def run_outreach_internal():
@@ -34,6 +39,9 @@ def run_outreach_internal():
     print(f"Found {len(leads)} pending leads with emails and no website.")
     
     for lead in leads:
+        if cancel_requests["outreach"]:
+            print("[INFO] Outreach run cancelled by user.")
+            break
         lead_dict = dict(lead)
         subject, text, html = email_handler.build_outreach_message(lead_dict)
         try:
@@ -67,9 +75,10 @@ def check_replies_job():
     if active_tasks["check_replies"]:
         return
     active_tasks["check_replies"] = True
+    cancel_requests["check_replies"] = False
     print("[INFO] Starting email replies checker...")
     try:
-        replies_handler.check_and_handle_replies()
+        replies_handler.check_and_handle_replies(is_cancelled=lambda: cancel_requests["check_replies"])
         last_checked_time = time.time()
         print("[SUCCESS] Reply check run complete.")
     except Exception as e:
@@ -81,9 +90,10 @@ def find_leads_job():
     if active_tasks["find_leads"]:
         return
     active_tasks["find_leads"] = True
+    cancel_requests["find_leads"] = False
     print("[INFO] Starting lead discovery...")
     try:
-        leads_handler.process_and_store_leads()
+        leads_handler.process_and_store_leads(is_cancelled=lambda: cancel_requests["find_leads"])
         print("[SUCCESS] Lead discovery complete.")
     except Exception as e:
         print(f"[ERROR] Lead discovery failed: {e}")
@@ -94,6 +104,7 @@ def outreach_job():
     if active_tasks["outreach"]:
         return
     active_tasks["outreach"] = True
+    cancel_requests["outreach"] = False
     print("[INFO] Starting email outreach...")
     try:
         run_outreach_internal()
@@ -242,3 +253,13 @@ def trigger_outreach():
         raise HTTPException(status_code=400, detail="Email outreach is already running")
     threading.Thread(target=outreach_job, daemon=True).start()
     return {"message": "Outreach email campaign started in the background."}
+
+@app.post("/api/tasks/stop/{task_name}", dependencies=[Depends(verify_api_auth)])
+def stop_task(task_name: str):
+    if task_name not in cancel_requests:
+        raise HTTPException(status_code=400, detail="Invalid task name")
+    if not active_tasks[task_name]:
+        raise HTTPException(status_code=400, detail=f"Task '{task_name}' is not running")
+        
+    cancel_requests[task_name] = True
+    return {"message": f"Cancellation request sent for task '{task_name}'."}

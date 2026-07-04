@@ -62,7 +62,7 @@ def get_email_body(msg):
                 pass
     return body.strip()
 
-def check_and_handle_replies():
+def check_and_handle_replies(is_cancelled=None):
     if not config.IMAP_USER or not config.IMAP_PASS or not config.IMAP_HOST:
         print("IMAP configuration is incomplete. Skipping reply check.")
         return
@@ -87,6 +87,9 @@ def check_and_handle_replies():
         print(f"Found {len(mail_ids)} unseen emails in INBOX.")
         
         for mail_id in mail_ids:
+            if is_cancelled and is_cancelled():
+                print("[INFO] Reply check cancelled by user.")
+                break
             status, data = mail.fetch(mail_id, "(RFC822)")
             if status != "OK" or not data:
                 continue

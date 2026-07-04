@@ -268,8 +268,33 @@
             border-color: var(--card-border);
         }
 
+        .action-btn.running {
+            background: rgba(16, 185, 129, 0.05) !important;
+            border-color: var(--color-success) !important;
+            color: var(--text-primary) !important;
+            cursor: pointer !important;
+            opacity: 1 !important;
+        }
+
         .action-btn.running i {
+            color: var(--color-success) !important;
             animation: spin 1s linear infinite;
+        }
+
+        .action-btn.running:hover {
+            background: rgba(239, 68, 68, 0.15) !important;
+            border-color: var(--color-danger) !important;
+            color: #f87171 !important;
+            transform: scale(1.02);
+        }
+
+        .action-btn.running:hover i {
+            color: var(--color-danger) !important;
+            animation: none !important;
+        }
+
+        .action-btn.running:hover i::before {
+            content: "\f28d"; /* fa-circle-stop */
         }
 
         @keyframes spin {
@@ -775,17 +800,28 @@
         function updateButtonState(taskName, isRunning) {
             const btn = document.getElementById(`btn-${taskName}`);
             if (!btn) return;
+            const label = btn.querySelector('span');
             const icon = btn.querySelector('i');
             
             if (isRunning) {
-                btn.disabled = true;
                 btn.classList.add('running');
+                if (label) {
+                    let taskTitle = 'Checking Replies';
+                    if (taskName === 'find-leads') taskTitle = 'Finding Leads';
+                    if (taskName === 'outreach') taskTitle = 'Sending Pitch';
+                    label.textContent = `${taskTitle} (Stop)`;
+                }
                 if (icon) {
                     icon.className = 'fa-solid fa-spinner fa-spin';
                 }
             } else {
-                btn.disabled = false;
                 btn.classList.remove('running');
+                if (label) {
+                    let defaultText = 'Check Email Replies';
+                    if (taskName === 'find-leads') defaultText = 'Discover New Leads';
+                    if (taskName === 'outreach') defaultText = 'Send Pitch Emails';
+                    label.textContent = defaultText;
+                }
                 if (icon) {
                     let defaultIconClass = 'fa-envelope';
                     if (taskName === 'find-leads') defaultIconClass = 'fa-magnifying-glass';
@@ -880,6 +916,11 @@
         }
 
         async function triggerTask(taskName) {
+            const btn = document.getElementById(`btn-${taskName}`);
+            if (btn && btn.classList.contains('running')) {
+                return stopTask(taskName);
+            }
+            
             updateButtonState(taskName, true);
             showToast(`Initiating ${taskName.replace('-', ' ')}...`, 'info');
             
@@ -898,6 +939,29 @@
             } catch (err) {
                 console.error(`Error triggering ${taskName}:`, err);
                 showToast(`Network error triggering ${taskName}`, 'error');
+            } finally {
+                fetchStats();
+            }
+        }
+
+        async function stopTask(taskName) {
+            showToast(`Requesting stop for ${taskName.replace('-', ' ')}...`, 'warning');
+            
+            try {
+                const res = await fetch(`/api/tasks/stop/${taskName}`, {
+                    method: 'POST'
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(data.message, 'success');
+                } else {
+                    const errData = await res.json();
+                    showToast(errData.detail || 'Stop request failed', 'error');
+                }
+            } catch (err) {
+                console.error(`Error stopping ${taskName}:`, err);
+                showToast(`Network error stopping ${taskName}`, 'error');
             } finally {
                 fetchStats();
             }

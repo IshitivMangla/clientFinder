@@ -6,6 +6,11 @@ from bs4 import BeautifulSoup
 from . import config
 from . import database
 
+# Disable SSL verification warnings if verification is disabled in config
+if not config.VERIFY_SSL:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 def is_restaurant_or_hotel(lead_type):
     if not lead_type:
         return False
@@ -34,7 +39,7 @@ def discover_leads_from_google_places():
     try:
         database.enforce_rate_limit("google_places", 300)
         database.increment_api_usage("google_places")
-        response = requests.get(url, params=params, timeout=15)
+        response = requests.get(url, params=params, timeout=15, verify=config.VERIFY_SSL)
         response.raise_for_status()
         data = response.json()
         results = data.get("results") or []
@@ -66,7 +71,7 @@ def search_duckduckgo_for_email(business_name, address):
     
     emails = set()
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
             snippets = soup.find_all(class_="result__snippet")
@@ -86,13 +91,16 @@ def search_duckduckgo_for_email(business_name, address):
 def filter_leads_without_website(leads):
     return [lead for lead in leads if not lead.get("website") and lead.get("email")]
 
-def process_and_store_leads():
+def process_and_store_leads(is_cancelled=None):
     # Discover Google Places leads
     if config.GOOGLE_PLACES_API_KEY and config.SEARCH_LOCATION:
         discovered = discover_leads_from_google_places()
         print(f"Discovered {len(discovered)} leads from Google Places.")
         
         for lead in discovered:
+            if is_cancelled and is_cancelled():
+                print("[INFO] Lead processing cancelled by user.")
+                break
             if not lead["website"]:
                 # Check if we already have this lead in the database
                 existing = database.get_lead_by_email(lead["email"]) if lead["email"] else None
