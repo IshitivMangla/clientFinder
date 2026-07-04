@@ -13,6 +13,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src import database, leads_handler, email_handler, replies_handler
 from src.pipeline import process_single_lead_pipeline
 
+# Initialize database tables on startup
+database.init_db()
+
 app = FastAPI(title="Outreach Bot API", version="2.0.0")
 
 # In-memory rolling logs
