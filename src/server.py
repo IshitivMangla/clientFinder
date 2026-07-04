@@ -19,35 +19,6 @@ database.init_db()
 
 app = FastAPI(title="Outreach Bot API", version="2.0.0")
 
-# In-memory rolling logs
-SYSTEM_LOGS = []
-
-class LogCaptureStream:
-    def __init__(self, original_stdout):
-        self.original_stdout = original_stdout
-        self.buffer = ""
-
-    def write(self, message):
-        self.original_stdout.write(message)
-        self.original_stdout.flush()
-        
-        self.buffer += message
-        if "\n" in self.buffer:
-            lines = self.buffer.split("\n")
-            for line in lines[:-1]:
-                if line.strip():
-                    timestamp = datetime.datetime.now().strftime("[%H:%M:%S]")
-                    SYSTEM_LOGS.append(f"{timestamp} {line}")
-                    if len(SYSTEM_LOGS) > 250:
-                        SYSTEM_LOGS.pop(0)
-            self.buffer = lines[-1]
-
-    def flush(self):
-        self.original_stdout.flush()
-
-# Redirect stdout to capture logs for the dashboard console
-sys.stdout = LogCaptureStream(sys.stdout)
-
 # Scheduler state variables
 last_checked_time = None
 active_tasks = {
@@ -249,9 +220,7 @@ def get_leads():
     conn.close()
     return {"leads": leads}
 
-@app.get("/api/logs", dependencies=[Depends(verify_api_auth)])
-def get_logs():
-    return {"logs": SYSTEM_LOGS}
+
 
 @app.post("/api/tasks/check-replies", dependencies=[Depends(verify_api_auth)])
 def trigger_check_replies():
