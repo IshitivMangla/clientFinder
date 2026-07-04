@@ -11,11 +11,11 @@ if not config.VERIFY_SSL:
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def is_restaurant_or_hotel(lead_type):
+def is_restaurant(lead_type):
     if not lead_type:
         return False
     type_lower = lead_type.lower()
-    keywords = ["restaurant", "hotel", "lodging", "cafe", "bar", "resort", "motel", "inn"]
+    keywords = ["restaurant"]
     return any(kw in type_lower for kw in keywords)
 
 def discover_leads_from_google_places():
@@ -101,6 +101,10 @@ def process_and_store_leads(is_cancelled=None):
             if is_cancelled and is_cancelled():
                 print("[INFO] Lead processing cancelled by user.")
                 break
+            # Only process if business is a restaurant
+            if not is_restaurant(lead["type"]):
+                print(f"Skipping '{lead['name']}' (Type: {lead['type']}) - not a restaurant.")
+                continue
             if not lead["website"]:
                 # Check if we already have this lead in the database
                 existing = database.get_lead_by_email(lead["email"]) if lead["email"] else None

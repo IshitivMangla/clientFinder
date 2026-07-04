@@ -46,9 +46,9 @@ def process_single_lead_pipeline():
         lead_dict = dict(lead)
         lead_id = lead_dict["id"]
         
-        # 1. Check if business is a restaurant or hotel
-        if not leads_handler.is_restaurant_or_hotel(lead_dict["type"]):
-            print(f"[PIPELINE] Skipping '{lead_dict['name']}' (Type: {lead_dict['type']}) - not a restaurant or hotel.")
+        # 1. Check if business is a restaurant
+        if not leads_handler.is_restaurant(lead_dict["type"]):
+            print(f"[PIPELINE] Skipping '{lead_dict['name']}' (Type: {lead_dict['type']}) - not a restaurant.")
             database.update_lead_status(lead_id, "skipped_type")
             continue # Try the next lead in the loop
             

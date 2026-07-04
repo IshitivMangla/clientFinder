@@ -19,7 +19,7 @@ IMAP_PASS = os.getenv("IMAP_PASS")
 IMAP_TLS = os.getenv("IMAP_TLS", "true").lower() != "false"
 
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
-SEARCH_QUERY = os.getenv("SEARCH_QUERY", "restaurant hotel")
+SEARCH_QUERY = os.getenv("SEARCH_QUERY", "restaurant")
 SEARCH_LOCATION = os.getenv("SEARCH_LOCATION")
 SEARCH_RADIUS = int(os.getenv("SEARCH_RADIUS") or 5000)
 
