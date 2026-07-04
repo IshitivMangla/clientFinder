@@ -33,3 +33,6 @@ NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct")
 
 # Supabase database connection string
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
+
+# Dashboard password
+DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD")

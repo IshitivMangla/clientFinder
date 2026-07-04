@@ -55,6 +55,17 @@ def main():
 
     if args.server:
         import uvicorn
+        import webbrowser
+        import threading
+        import time
+
+        def open_browser():
+            time.sleep(1.5)
+            print("Automatically opening dashboard/login page in your default browser...")
+            webbrowser.open("http://localhost:8000")
+
+        threading.Thread(target=open_browser, daemon=True).start()
+
         print("Starting FastAPI dashboard server on http://localhost:8000...")
         uvicorn.run("src.server:app", host="0.0.0.0", port=8000, reload=False)
         return

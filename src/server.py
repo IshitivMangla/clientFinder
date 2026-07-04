@@ -3,9 +3,10 @@ import os
 import time
 import datetime
 import threading
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Cookie, Response, Form, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
+from src import config
 
 # Adjust path if needed
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -165,16 +166,54 @@ def scheduler_loop():
 scheduler_thread = threading.Thread(target=scheduler_loop, daemon=True)
 scheduler_thread.start()
 
-# API Endpoints
+# API Auth Dependency
+def verify_api_auth(auth_token: str = Cookie(None)):
+    expected_password = config.DASHBOARD_PASSWORD
+    if not expected_password:
+        return
+    if auth_token != expected_password:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+# API Endpoints & Auth Routes
 @app.get("/", response_class=HTMLResponse)
-def get_dashboard():
+def get_dashboard(auth_token: str = Cookie(None)):
+    expected_password = config.DASHBOARD_PASSWORD
+    if expected_password and auth_token != expected_password:
+        login_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "login.html")
+        if not os.path.exists(login_path):
+            return HTMLResponse(content="<h1>Outreach Bot Login</h1><p>login.html template file not found</p>", status_code=404)
+        with open(login_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+            
     dashboard_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.html")
     if not os.path.exists(dashboard_path):
         raise HTTPException(status_code=404, detail="Dashboard UI file not found")
     with open(dashboard_path, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
-@app.get("/api/status")
+@app.post("/login")
+def login(response: Response, password: str = Form(...)):
+    expected_password = config.DASHBOARD_PASSWORD
+    if not expected_password:
+        return {"message": "Bypassed"}
+    if password != expected_password:
+        raise HTTPException(status_code=400, detail="Incorrect password")
+    
+    response.set_cookie(
+        key="auth_token",
+        value=password,
+        httponly=True,
+        max_age=30 * 24 * 3600, # 30 days
+        samesite="lax"
+    )
+    return {"message": "Success"}
+
+@app.get("/logout")
+def logout(response: Response):
+    response.delete_cookie("auth_token")
+    return RedirectResponse(url="/", status_code=303)
+
+@app.get("/api/status", dependencies=[Depends(verify_api_auth)])
 def get_status():
     conn = database.get_db_connection()
     cursor = conn.cursor()
@@ -200,7 +239,7 @@ def get_status():
         "active_tasks": active_tasks
     }
 
-@app.get("/api/leads")
+@app.get("/api/leads", dependencies=[Depends(verify_api_auth)])
 def get_leads():
     conn = database.get_db_connection()
     cursor = conn.cursor()
@@ -210,25 +249,25 @@ def get_leads():
     conn.close()
     return {"leads": leads}
 
-@app.get("/api/logs")
+@app.get("/api/logs", dependencies=[Depends(verify_api_auth)])
 def get_logs():
     return {"logs": SYSTEM_LOGS}
 
-@app.post("/api/tasks/check-replies")
+@app.post("/api/tasks/check-replies", dependencies=[Depends(verify_api_auth)])
 def trigger_check_replies():
     if active_tasks["check_replies"]:
         raise HTTPException(status_code=400, detail="Reply checker is already running")
     threading.Thread(target=check_replies_job, daemon=True).start()
     return {"message": "Email reply checker started in the background."}
 
-@app.post("/api/tasks/find-leads")
+@app.post("/api/tasks/find-leads", dependencies=[Depends(verify_api_auth)])
 def trigger_find_leads():
     if active_tasks["find_leads"]:
         raise HTTPException(status_code=400, detail="Lead discovery is already running")
     threading.Thread(target=find_leads_job, daemon=True).start()
     return {"message": "Lead discovery started in the background."}
 
-@app.post("/api/tasks/outreach")
+@app.post("/api/tasks/outreach", dependencies=[Depends(verify_api_auth)])
 def trigger_outreach():
     if active_tasks["outreach"]:
         raise HTTPException(status_code=400, detail="Email outreach is already running")
