@@ -1,4 +1,3 @@
-import csv
 import os
 import re
 import urllib.parse
@@ -6,32 +5,6 @@ import requests
 from bs4 import BeautifulSoup
 from . import config
 from . import database
-
-def load_leads_from_csv():
-    file_path = os.path.abspath(config.LEADS_CSV)
-    if not os.path.exists(file_path):
-        print(f"CSV file not found at {file_path}")
-        return []
-    
-    leads = []
-    with open(file_path, mode="r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            name = row.get("name") or row.get("business") or row.get("company") or ""
-            email = row.get("email") or row.get("contact_email") or ""
-            website = row.get("website") or ""
-            lead_type = row.get("type") or "business"
-            address = row.get("address") or ""
-            
-            leads.append({
-                "name": name.strip(),
-                "email": email.strip(),
-                "website": website.strip(),
-                "type": lead_type.strip(),
-                "address": address.strip(),
-                "source": "csv"
-            })
-    return leads
 
 def is_restaurant_or_hotel(lead_type):
     if not lead_type:
@@ -114,30 +87,7 @@ def filter_leads_without_website(leads):
     return [lead for lead in leads if not lead.get("website") and lead.get("email")]
 
 def process_and_store_leads():
-    # 1. Load CSV leads
-    csv_leads = load_leads_from_csv()
-    print(f"Loaded {len(csv_leads)} leads from CSV.")
-    for lead in csv_leads:
-        # If lead has no email, try to find it
-        email = lead["email"]
-        if not email and not lead["website"]:
-            print(f"Searching email for CSV lead: {lead['name']}...")
-            email = search_duckduckgo_for_email(lead["name"], lead["address"])
-            if email:
-                print(f"Found email: {email}")
-                lead["email"] = email
-        
-        if lead["email"]:
-            database.add_lead(
-                name=lead["name"],
-                email=lead["email"],
-                website=lead["website"],
-                lead_type=lead["type"],
-                address=lead["address"],
-                source=lead["source"]
-            )
-
-    # 2. Discover Google Places leads
+    # Discover Google Places leads
     if config.GOOGLE_PLACES_API_KEY and config.SEARCH_LOCATION:
         discovered = discover_leads_from_google_places()
         print(f"Discovered {len(discovered)} leads from Google Places.")
@@ -165,33 +115,6 @@ def process_and_store_leads():
                     source=lead["source"]
                 )
 
-def save_interested_lead_to_csv(lead, negotiated_price):
-    import csv
-    import os
-    from datetime import datetime
-    from . import config
-    
-    leads_dir = os.path.dirname(os.path.abspath(config.LEADS_CSV))
-    csv_path = os.path.join(leads_dir, "interested_leads.csv")
-    os.makedirs(leads_dir, exist_ok=True)
-    file_exists = os.path.exists(csv_path)
-    
-    lead_dict = dict(lead)
-    
-    try:
-        with open(csv_path, mode="a", encoding="utf-8", newline="") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["Name", "Email", "Website", "Type", "Address", "Negotiated Price", "Date"])
-            writer.writerow([
-                lead_dict.get("name", ""),
-                lead_dict.get("email", ""),
-                lead_dict.get("website", ""),
-                lead_dict.get("type", ""),
-                lead_dict.get("address", ""),
-                negotiated_price,
-                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-            ])
-        print(f"[CSV] Successfully logged interested lead {lead_dict.get('email')} to {csv_path} with price {negotiated_price}")
-    except Exception as e:
-        print(f"[ERROR] Failed to save interested lead to CSV: {e}")
+def save_interested_lead_to_db(lead, negotiated_price):
+    from . import database
+    database.save_interested_lead_to_db(lead, negotiated_price)

@@ -26,11 +26,10 @@ SEARCH_RADIUS = int(os.getenv("SEARCH_RADIUS") or 5000)
 SEND_EMAIL = os.getenv("SEND_EMAIL", "false").lower() == "true"
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() != "false"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-LEADS_CSV = os.getenv("LEADS_CSV", "./leads/leads.csv")
-
-# Path to local database
-DB_PATH = os.getenv("DB_PATH", "./leads.db")
 
 # NVIDIA API Settings
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct")
+
+# Supabase database connection string
+SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")

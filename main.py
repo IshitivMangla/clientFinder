@@ -37,8 +37,8 @@ def run_outreach():
 
 def main():
     parser = argparse.ArgumentParser(description="Client Outreach and Follow-up Bot")
-    parser.add_argument("--init-db", action="store_true", help="Initialize the SQLite database")
-    parser.add_argument("--find-leads", action="store_true", help="Find and store leads from CSV & Google Places")
+    parser.add_argument("--init-db", action="store_true", help="Initialize the PostgreSQL database")
+    parser.add_argument("--find-leads", action="store_true", help="Find and store leads from Google Places")
     parser.add_argument("--outreach", action="store_true", help="Send outreach to pending leads without websites")
     parser.add_argument("--check-replies", action="store_true", help="Check IMAP for replies and follow up")
     parser.add_argument("--all", action="store_true", help="Run find-leads, outreach, and check-replies")

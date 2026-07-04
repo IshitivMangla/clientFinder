@@ -243,11 +243,11 @@ def check_and_handle_replies():
                         body=cleaned_reply_body
                     )
                     
-                    # Save details to interested CSV file
-                    leads_handler.save_interested_lead_to_csv(lead, negotiated_price)
+                    # Save details to interested database table
+                    leads_handler.save_interested_lead_to_db(lead, negotiated_price)
                     
                     database.update_lead_status(lead["id"], "negotiated")
-                    print(f"[REPLIES] Automated negotiation complete. Status set to 'negotiated' and saved to CSV.")
+                    print(f"[REPLIES] Automated negotiation complete. Status set to 'negotiated' and saved to database.")
                 
                 mail.store(mail_id, "+FLAGS", "\\Seen")
                 print(f"Successfully processed reply from {sender_email} and marked as read.")
