@@ -18,7 +18,7 @@ def is_restaurant(lead_type):
     keywords = ["restaurant"]
     return any(kw in type_lower for kw in keywords)
 
-def discover_leads_from_google_places():
+def discover_leads_from_google_places(is_cancelled=None):
     if not config.GOOGLE_PLACES_API_KEY or not config.SEARCH_LOCATION:
         print("Google Places API key or search location is not configured.")
         return []
@@ -37,7 +37,8 @@ def discover_leads_from_google_places():
     }
 
     try:
-        database.enforce_rate_limit("google_places", 300)
+        if not database.enforce_rate_limit("google_places", 300, is_cancelled):
+            return []
         database.increment_api_usage("google_places")
         response = requests.get(url, params=params, timeout=15, verify=config.VERIFY_SSL)
         response.raise_for_status()
@@ -63,29 +64,82 @@ def discover_leads_from_google_places():
         return []
 
 def search_duckduckgo_for_email(business_name, address):
-    query = f"{business_name} {address or ''} email".strip()
-    url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+    # Extract clean address components
+    street = ""
+    city = ""
+    if address:
+        parts = [p.strip() for p in address.split(",") if p.strip()]
+        if len(parts) > 0:
+            street = parts[0]
+        if len(parts) > 1:
+            city = parts[1]
+            
+    # Build fallback queries (from most specific to broadest)
+    queries = []
+    if street and city:
+        queries.append(f"{business_name} {street} {city} email")
+    if city:
+        queries.append(f"{business_name} {city} email")
+    queries.append(f"{business_name} email")
+    
+    # De-duplicate queries
+    seen = set()
+    clean_queries = []
+    for q in queries:
+        if q.lower() not in seen:
+            seen.add(q.lower())
+            clean_queries.append(q)
+            
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     }
     
     emails = set()
-    try:
-        response = requests.get(url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser")
-            snippets = soup.find_all(class_="result__snippet")
-            email_regex = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}")
-            
-            for snippet in snippets:
-                text = snippet.get_text()
-                found = email_regex.findall(text)
-                for email in found:
-                    if not any(email.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".js", ".css"]):
-                        emails.add(email.lower())
-    except Exception as e:
-        print(f"Error searching email for {business_name}: {e}")
+    email_regex = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}")
+    
+    # Exclude common domains that are search engines or asset files
+    exclude_domains = [
+        "brave.com", "google.com", "duckduckgo.com", "microsoft.com", "bing.com", 
+        "yahoo.com", "ask.com", "yandex.ru", ".png", ".jpg", ".jpeg", ".gif", 
+        ".webp", ".svg", ".js", ".css", ".ico", ".woff", ".woff2", ".ttf", ".eot"
+    ]
+    
+    for query in clean_queries:
+        escaped_query = urllib.parse.quote(query)
         
+        # Try Brave Search first
+        try:
+            brave_url = f"https://search.brave.com/search?q={escaped_query}"
+            response = requests.get(brave_url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
+            if response.status_code == 200:
+                found = email_regex.findall(response.text)
+                for email in found:
+                    if not any(email.lower().endswith(dom) for dom in exclude_domains):
+                        emails.add(email.lower())
+                if emails:
+                    break
+        except Exception as e:
+            print(f"Brave Search error for query '{query}': {e}")
+            
+        # Try DuckDuckGo fallback
+        try:
+            ddg_url = f"https://html.duckduckgo.com/html/?q={escaped_query}"
+            response = requests.get(ddg_url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, "html.parser")
+                snippets = soup.find_all(class_="result__snippet")
+                
+                for snippet in snippets:
+                    text = snippet.get_text()
+                    found = email_regex.findall(text)
+                    for email in found:
+                        if not any(email.lower().endswith(dom) for dom in exclude_domains):
+                            emails.add(email.lower())
+                if emails:
+                    break
+        except Exception as e:
+            print(f"DuckDuckGo error for query '{query}': {e}")
+            
     return list(emails)[0] if emails else None
 
 def filter_leads_without_website(leads):

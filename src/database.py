@@ -224,7 +224,7 @@ def set_last_called_time(api_name, timestamp):
     finally:
         conn.close()
 
-def enforce_rate_limit(api_name, interval_seconds):
+def enforce_rate_limit(api_name, interval_seconds, is_cancelled=None):
     import time
     last_called = get_last_called_time(api_name)
     if last_called:
@@ -232,8 +232,17 @@ def enforce_rate_limit(api_name, interval_seconds):
         if elapsed < interval_seconds:
             wait_time = interval_seconds - elapsed
             print(f"Rate limit for {api_name} hit. Waiting for {wait_time:.2f} seconds...")
-            time.sleep(wait_time)
+            
+            slept = 0.0
+            while slept < wait_time:
+                if is_cancelled and is_cancelled():
+                    print(f"[INFO] Rate limit sleep for {api_name} cancelled by user.")
+                    return False
+                time.sleep(min(1.0, wait_time - slept))
+                slept += 1.0
+                
     set_last_called_time(api_name, time.time())
+    return True
 
 def increment_api_usage(api_name):
     conn = get_db_connection()
