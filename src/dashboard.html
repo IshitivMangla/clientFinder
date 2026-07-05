@@ -51,7 +51,7 @@
 
 *,::before,::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:14px;-webkit-font-smoothing:antialiased}
-body{font-family:var(--ff);background:var(--bg);color:var(--t1);display:flex;min-height:100vh;overflow:hidden}
+html, body {font-family:var(--ff);background:var(--bg);color:var(--t1);display:flex;min-height:100vh;overflow-y:auto}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--t4);border-radius:4px}
@@ -138,7 +138,7 @@ button{font-family:var(--ff);cursor:pointer}
 /* ──────────────────────────────────────────
    MAIN
 ────────────────────────────────────────── */
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
 
 /* Topbar */
 .topbar{
@@ -190,7 +190,7 @@ button{font-family:var(--ff);cursor:pointer}
 .kpi{
   background:var(--surface);border:1px solid var(--border);
   border-radius:var(--r-xl);padding:1.25rem 1.25rem 1rem;
-  position:relative;overflow:hidden;
+  position:relative;overflow:visible;
   transition:transform .2s,border-color .2s;cursor:default;
 }
 .kpi:hover{transform:translateY(-2px);border-color:var(--border2)}
@@ -712,6 +712,11 @@ tr.no-web:hover td{background:rgba(245,158,11,.05)!important}
 <div class="toast-box" id="toast-box"></div>
 
 <script>
+
+window.onerror = function(msg,file,line){
+    console.error("JS ERROR:",msg,line);
+};
+
 /* ══════════════════════════════════════════
    STATE
 ══════════════════════════════════════════ */
