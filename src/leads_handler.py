@@ -145,6 +145,94 @@ def discover_leads_from_google_places(is_cancelled=None):
         print(f"Google Places API error: {e}")
         return []
 
+def extract_emails_from_text(text, exclude_domains):
+    email_regex = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}")
+    emails = set()
+    found = email_regex.findall(text)
+    for email in found:
+        if not any(email.lower().endswith(dom) for dom in exclude_domains):
+            emails.add(email.lower())
+    return emails
+
+def scrape_email_from_website(url):
+    """
+    Dynamically scrape a website's homepage and follow common contact paths 
+    to extract email addresses.
+    """
+    if not url:
+        return None
+        
+    if not url.startswith('http'):
+        url = 'https://' + url
+        
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    }
+    
+    exclude_domains = [
+        "brave.com", "google.com", "duckduckgo.com", "microsoft.com", "bing.com", 
+        "yahoo.com", "ask.com", "yandex.ru", ".png", ".jpg", ".jpeg", ".gif", 
+        ".webp", ".svg", ".js", ".css", ".ico", ".woff", ".woff2", ".ttf", ".eot",
+        "sentry.io", "wix.com", "squarespace.com", "shopify.com"
+    ]
+    
+    found_emails = set()
+    try:
+        response = requests.get(url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
+        if response.status_code != 200:
+            return None
+            
+        # 1. Check homepage body
+        found_emails.update(extract_emails_from_text(response.text, exclude_domains))
+        
+        # Parse with BeautifulSoup
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # 2. Check for explicit mailto: links (often obfuscated from regex)
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            if href.lower().startswith('mailto:'):
+                email = href[7:].split('?')[0].strip()
+                if email and not any(email.lower().endswith(dom) for dom in exclude_domains):
+                    found_emails.add(email.lower())
+                    
+        if found_emails:
+            return list(found_emails)[0]
+            
+        # 3. Network path analysis - look for contact/about pages
+        links_to_crawl = []
+        for a in soup.find_all('a', href=True):
+            href = a['href'].lower()
+            if 'contact' in href or 'about' in href or 'reach' in href or 'support' in href:
+                full_link = urllib.parse.urljoin(url, a['href'])
+                if full_link not in links_to_crawl and full_link.startswith('http'):
+                    links_to_crawl.append(full_link)
+                    
+        # Crawl up to 3 relevant sub-pages
+        for sub_url in links_to_crawl[:3]:
+            try:
+                sub_res = requests.get(sub_url, headers=headers, timeout=8, verify=config.VERIFY_SSL)
+                if sub_res.status_code == 200:
+                    found_emails.update(extract_emails_from_text(sub_res.text, exclude_domains))
+                    # Check mailto on subpages too
+                    sub_soup = BeautifulSoup(sub_res.text, "html.parser")
+                    for a in sub_soup.find_all('a', href=True):
+                        href = a['href']
+                        if href.lower().startswith('mailto:'):
+                            email = href[7:].split('?')[0].strip()
+                            if email and not any(email.lower().endswith(dom) for dom in exclude_domains):
+                                found_emails.add(email.lower())
+                                
+                if found_emails:
+                    break
+            except Exception as e:
+                continue
+                
+    except Exception as e:
+        print(f"Failed to scrape website {url}: {e}")
+        
+    return list(found_emails)[0] if found_emails else None
+
 def search_duckduckgo_for_email(business_name, address):
     # Extract clean address components
     street = ""
@@ -241,17 +329,27 @@ def process_and_store_leads(is_cancelled=None):
             if not is_restaurant_or_hotel(lead["type"]):
                 print(f"Skipping '{lead['name']}' (Type: {lead['type']}) - not a restaurant or hotel.")
                 continue
-            if not lead["website"]:
-                # Check if we already have this lead in the database
-                existing = database.get_lead_by_email(lead["email"]) if lead["email"] else None
-                if not existing:
-                    print(f"Searching email for: {lead['name']}...")
+            # Check if we already have this lead in the database
+            existing = database.get_lead_by_email(lead["email"]) if lead.get("email") else None
+            if not existing:
+                print(f"Searching email for: {lead['name']}...")
+                email = None
+                
+                # 1. Try website scraping
+                if lead.get("website"):
+                    print(f"Attempting to scrape website directly: {lead['website']}")
+                    email = scrape_email_from_website(lead["website"])
+                    
+                # 2. Try DuckDuckGo / Brave search
+                if not email:
+                    print("Using search engine fallback...")
                     email = search_duckduckgo_for_email(lead["name"], lead["address"])
-                    if email:
-                        print(f"Found email: {email}")
-                        lead["email"] = email
-                    else:
-                        print("No email found.")
+                    
+                if email:
+                    print(f"Found email: {email}")
+                    lead["email"] = email
+                else:
+                    print("No email found.")
             
             if lead["email"]:
                 database.add_lead(

@@ -145,9 +145,9 @@ def scheduler_loop():
         if now - last_lead_process >= 300:
             last_lead_process = now
             try:
-                from src.pipeline import run_discovery_cycle
+                from src.pipeline import run_discovery_cycle, process_leads_pipeline
                 threading.Thread(target=run_discovery_cycle, daemon=True).start()
-                threading.Thread(target=process_single_lead_pipeline, daemon=True).start()
+                threading.Thread(target=process_leads_pipeline, daemon=True).start()
             except Exception as e:
                 print(f"[ERROR] Failed to start lead pipeline/discovery threads: {e}")
                 

@@ -869,7 +869,7 @@ function renderLeads() {
 
     const emailCell = l.email
       ? `<span style="font-family:monospace;font-size:.74rem;color:var(--t2)">${l.email}</span>`
-      : `<span style="color:var(--t3);font-size:.74rem">—</span>`;
+      : (l.status === 'no_email_found' ? `<span style="color:var(--t3);font-size:.74rem">Not Found</span>` : `<span style="color:var(--t3);font-size:.74rem">Scraping...</span>`);
 
     const canSend = !!(l.email && l.email.trim());
     const defaultTpl = hasWeb ? 'has_website' : 'no_website';
