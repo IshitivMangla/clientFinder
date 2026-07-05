@@ -723,76 +723,41 @@ let chartDonut= null;
 
 const TITLES = {leads:'Leads',analytics:'Analytics',controls:'Controls',templates:'Templates',settings:'Settings'};
 
-/* ════════════════════════════════════�  // Store site data by lead ID — avoids inline string escaping bugs
-  window._siteData = {};
-  rows.forEach(l => {
-    window._siteData[l.id] = { url: l.website || '', name: l.name || '', address: l.address || '' };
+/* ══════════════════════════════════════════
+   INIT & ROUTING
+══════════════════════════════════════════ */
+function nav(page) {
+  document.querySelectorAll('.sb-item').forEach(e => e.classList.remove('active'));
+  const link = document.querySelector(`.sb-item[onclick="nav('${page}')"]`);
+  if (link) link.classList.add('active');
+
+  document.querySelectorAll('.section').forEach(e => {
+    e.style.display = (e.id === 'sec-' + page) ? 'block' : 'none';
   });
 
-  tbody.innerHTML = rows.map(l => {
-    const isHotel = /hotel|lodging|motel|inn/i.test(l.type||'');
-    const typeBadge = isHotel
-      ? '<span class="badge b-hot"><i class="fa-solid fa-hotel"></i> Hotel</span>'
-      : '<span class="badge b-res"><i class="fa-solid fa-utensils"></i> Restaurant</span>';
+  const h1 = document.querySelector('.topbar h1');
+  if (h1) h1.textContent = TITLES[page] || 'Dashboard';
+}
 
-    const rawUrl = (l.website || '').trim();
-    const hasWeb = !!(rawUrl && rawUrl !== 'None' && rawUrl !== 'null' && rawUrl !== 'none');
-    // Website column: clickable badge for has-website, danger badge for no-website
-    const webCell = hasWeb
-      ? `<a href="${fmtUrl(rawUrl)}" target="_blank" rel="noopener"
-           class="badge b-hasweb" style="cursor:pointer;text-decoration:none;display:inline-flex"
-           title="${rawUrl}"><i class="fa-solid fa-arrow-up-right-from-square"></i>&nbsp;Open Site</a>`
-      : `<span class="badge b-noweb" title="No website found"><i class="fa-solid fa-triangle-exclamation"></i>&nbsp;No Website</span>`;
+function init() {
+  nav('leads');
+  fetchStats();
+  fetchLeads();
+  setInterval(fetchStats, 15000);
+  setInterval(fetchLeads, 15000);
+}
 
-    const STATUS = {
-      pending:          ['b-pend',  '⏳ Pending'],
-      discovered:       ['b-pend',  '🔍 Discovered'],
-      pending_outreach: ['b-ready', '📬 Ready to Send'],
-      outreached:       ['b-out',   '📧 Outreached'],
-      engaged:          ['b-eng',   '✅ Engaged'],
-      no_email_found:   ['b-none',  '❓ No Email'],
-      has_website:      ['b-hasweb','🌐 Has Site'],
-      skipped_type:     ['b-none',  '— Skipped'],
-      skipped_website:  ['b-none',  '— Skipped'],
-    };
-    const [sc, sl] = STATUS[l.status] || ['b-none', l.status];
-    const statusBadge = `<span class="badge ${sc}">${sl}</span>`;
+window.onload = init;
 
-    // Email: show as mailto link if available, else scraping indicator
-    const emailCell = (l.email && l.email.trim())
-      ? `<a href="mailto:${l.email}" style="font-family:monospace;font-size:.74rem;color:var(--sky);text-decoration:none">${l.email}</a>`
-      : `<span style="color:var(--t3);font-size:.72rem;display:flex;align-items:center;gap:4px"><i class="fa-solid fa-rotate fa-spin" style="font-size:.6rem"></i> Scraping…</span>`;
-
-    const canSend = !!(l.email && l.email.trim());
-    const defaultTpl = hasWeb ? 'has_website' : 'no_website';
-    const tplSelect = `<select id="tpl-${l.id}" class="btn" style="background:var(--surface2);color:var(--t2);border:1px solid var(--border);padding:6px;border-radius:var(--r-md);margin-right:4px;">
-      <option value="no_website" ${defaultTpl === 'no_website' ? 'selected' : ''}>Pitch: No Web</option>
-      <option value="has_website" ${defaultTpl === 'has_website' ? 'selected' : ''}>Pitch: Redesign</option>
-    </select>`;
-    const sendBtn = `<div style="display:flex;align-items:center;">${tplSelect}<button class="btn btn-p" onclick="sendEmail(${l.id},this)" ${canSend ? '' : 'disabled'} title="${canSend ? 'Send outreach email' : 'No email yet'}">
-      <i class="fa-solid fa-paper-plane"></i>${canSend ? ' Email' : ' No Email'}
-    </button></div>`;
-    // Use data-id — no inline string escaping; site data stored in window._siteData
-    const siteIco = hasWeb ? 'fa-globe' : 'fa-magnifying-glass';
-    const webBtn = `<button class="btn btn-g" data-lid="${l.id}" onclick="openLeadSite(this)" title="${hasWeb ? rawUrl : 'Google search'}">
-      <i class="fa-solid ${siteIco}"></i> ${hasWeb ? 'Site' : 'Search'}
-    </button>`;
-
-    // Highlight rows without a website
-    const rc = hasWeb ? '' : ' no-web';
-
-    return `<tr class="${rc}">
-      <td><div class="ln">${hEsc(l.name||'Unknown')}</div><div class="la"><i class="fa-solid fa-location-dot"></i>${hEsc(l.address||'—')}</div></td>
-      <td>${typeBadge}</td>
 /* ══════════════════════════════════════════
    STATS
 ══════════════════════════════════════════ */
 async function fetchStats() {
   try {
-    const res = await fetch('/api/stats');
+    const res = await fetch('/api/status');
     if (!res.ok) return;
     const d = await res.json();
-    const s = d.counts || {};
+    const s = d.stats || {};
     setText('k-total', s.total_leads ?? '—');
     setText('k-res',   s.restaurant_count ?? '—');
     setText('k-hot',   s.hotel_count ?? '—');
