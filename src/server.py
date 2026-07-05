@@ -149,26 +149,29 @@ def run_pipeline_task():
         print(f"[ERROR] Pipeline failed: {e}")
     finally:
         pipeline_running = False
+last_discovery_check = 0
 
 # Periodic Scheduler Loop
 def scheduler_loop():
     print("[INFO] Background scheduler loop activated.")
-    global pipeline_running
+    global pipeline_running, last_discovery_check
     last_reply_check = 0
     
     # Small startup delay to allow server initialization
     time.sleep(5)
-    
+
     while True:
         now = time.time()
-        
-        # 1. Run lead pipeline and discovery cycle
-        if pipeline_running:
-            print("[INFO] Previous cycle still running. Skipping.")
-        else:
-            pipeline_running = True
-            threading.Thread(target=run_pipeline_task, daemon=True).start()
-                
+
+        # 1. Run lead pipeline and discovery cycle (every 30 mins)
+        if now - last_discovery_check >= 1800:
+            last_discovery_check = now
+            if pipeline_running:
+                print("[INFO] Previous cycle still running. Skipping.")
+            else:
+                pipeline_running = True
+                threading.Thread(target=run_pipeline_task, daemon=True).start()
+
         # 2. Run reply checker every 1 hour (3600 seconds)
         if now - last_reply_check >= 3600:
             last_reply_check = now
@@ -176,8 +179,9 @@ def scheduler_loop():
                 threading.Thread(target=check_replies_job, daemon=True).start()
             except Exception as e:
                 print(f"[ERROR] Failed to start reply checker thread: {e}")
-                
-        time.sleep(300)
+
+        # Sleep a short while before checking timers again
+        time.sleep(60)
 
 
 @app.on_event("startup")

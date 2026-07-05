@@ -731,8 +731,8 @@ function nav(page) {
   const link = document.querySelector(`.sb-item[onclick="nav('${page}')"]`);
   if (link) link.classList.add('active');
 
-  document.querySelectorAll('.section').forEach(e => {
-    e.style.display = (e.id === 'sec-' + page) ? 'block' : 'none';
+  document.querySelectorAll('.section, [id^="page-"]').forEach(e => {
+    e.style.display = (e.id === 'page-' + page) ? 'block' : 'none';
   });
 
   const h1 = document.querySelector('.topbar h1');
