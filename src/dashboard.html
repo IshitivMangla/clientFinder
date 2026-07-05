@@ -760,7 +760,7 @@ window.onload = init;
 async function fetchStats() {
   try {
     const res = await fetch('/api/status');
-    if (!res.ok) return;
+    if (!res.ok) { throw Error(res.status); }
     const d = await res.json();
     const s = d.stats || {};
     setText('k-total', s.total_leads ?? '—');
@@ -771,7 +771,7 @@ async function fetchStats() {
     setText('k-pend',  s.pending_count ?? '—');
     setText('n-total', (s.restaurant_count||0) + (s.hotel_count||0));
     updateBtns(d.active_tasks || {});
-  } catch(e) { console.error('stats:', e); }
+  } catch(err) { console.error('API error', err); }
 
   try {
     const r2 = await fetch('/api/stats/daily');
@@ -792,11 +792,11 @@ async function fetchStats() {
 async function fetchLeads() {
   try {
     const res = await fetch(`/api/leads?filter=${segStatus}&type=${segType}`);
-    if (!res.ok) return;
+    if (!res.ok) { throw Error(res.status); }
     const d = await res.json();
     leads = d.leads || [];
     renderLeads();
-  } catch(e) { console.error('leads:', e); }
+  } catch(err) { console.error('API error', err); }
 }
 
 function renderLeads() {
@@ -981,7 +981,7 @@ async function stopTask(name) {
 async function loadAnalytics() {
   try {
     const res = await fetch('/api/stats/daily');
-    if (!res.ok) return;
+    if (!res.ok) { throw Error(res.status); }
     const d = await res.json();
 
     document.getElementById('a-kpi').innerHTML = `
@@ -1034,7 +1034,7 @@ async function loadAnalytics() {
         plugins:{ legend:{position:'bottom', labels:{color:'#94a3b8',padding:14,font:{size:11,family:'Geist,sans-serif'}}} }
       }
     });
-  } catch(e) { console.error(e); }
+  } catch(err) { console.error('API error', err); }
 }
 
 /* ══════════════════════════════════════════

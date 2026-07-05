@@ -137,43 +137,58 @@ def outreach_job():
     finally:
         active_tasks["outreach"] = False
 
-pipeline_running = False
 
-def run_pipeline_task():
-    global pipeline_running
-    try:
-        from src.pipeline import run_discovery_cycle, process_leads_pipeline
-        run_discovery_cycle()
-        process_leads_pipeline()
-    except Exception as e:
-        print(f"[ERROR] Pipeline failed: {e}")
-    finally:
-        pipeline_running = False
-last_discovery_check = 0
+last_google_run = 0
+last_email_run = 0
+last_reply_check = 0
 
 # Periodic Scheduler Loop
 def scheduler_loop():
     print("[INFO] Background scheduler loop activated.")
-    global pipeline_running, last_discovery_check
-    last_reply_check = 0
+    global last_google_run, last_email_run, last_reply_check
     
     # Small startup delay to allow server initialization
+    import time, threading
     time.sleep(5)
 
     while True:
         now = time.time()
-
-        # 1. Run lead pipeline and discovery cycle (every 30 mins)
-        if now - last_discovery_check >= 1800:
-            last_discovery_check = now
-            if pipeline_running:
-                print("[INFO] Previous cycle still running. Skipping.")
+        
+        # 1. Lead discovery (every 45 mins = 2700s)
+        google_time_left = int(2700 - (now - last_google_run))
+        if last_google_run == 0 or google_time_left <= 0:
+            last_google_run = now
+            
+            # Check daily limits
+            todays_leads = 0
+            try:
+                conn = database.get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT count(*) FROM leads WHERE created_at::date = CURRENT_DATE")
+                row = cursor.fetchone()
+                if row:
+                    todays_leads = row['count'] if isinstance(row, dict) or hasattr(row, 'keys') else row[0]
+                conn.close()
+            except Exception as e:
+                print("[ERROR] Limit check failed:", e)
+                
+            if todays_leads >= 100:
+                print("[LIMIT] Daily lead limit reached")
             else:
-                pipeline_running = True
-                threading.Thread(target=run_pipeline_task, daemon=True).start()
+                from src.pipeline import run_discovery_cycle
+                threading.Thread(target=run_discovery_cycle, daemon=True).start()
+        else:
+            print(f"[GOOGLE] Skipped. Next run in {google_time_left // 60} minutes")
 
-        # 2. Run reply checker every 1 hour (3600 seconds)
-        if now - last_reply_check >= 3600:
+        # 2. Email processing (every 5 mins = 300s)
+        if last_email_run == 0 or now - last_email_run >= 300:
+            last_email_run = now
+            print("[EMAIL] Processing pending leads")
+            from src.pipeline import process_leads_pipeline
+            threading.Thread(target=process_leads_pipeline, daemon=True).start()
+            
+        # 3. Reply checker (every 30 mins = 1800s)
+        if last_reply_check == 0 or now - last_reply_check >= 1800:
             last_reply_check = now
             try:
                 threading.Thread(target=check_replies_job, daemon=True).start()
@@ -183,8 +198,8 @@ def scheduler_loop():
         # Sleep a short while before checking timers again
         time.sleep(60)
 
-
 @app.on_event("startup")
+
 def startup():
     import threading
     thread = threading.Thread(
@@ -323,7 +338,7 @@ def get_daily_stats():
         oc = cursor.fetchone()[0]
         cursor.execute("SELECT count(*) FROM leads WHERE status IN ('pending','discovered')")
         pc = cursor.fetchone()[0]
-        cursor.execute("SELECT request_count FROM api_usage_log WHERE api_name='google_places' AND request_date=CURRENT_DATE")
+        cursor.execute("SELECT request_count FROM api_usage_log WHERE api_name='google_places' AND request_date=CURRENT_DATE::date")
         row = cursor.fetchone()
         api_today = row[0] if row else 0
     except Exception as e:
