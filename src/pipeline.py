@@ -98,12 +98,14 @@ def process_leads_pipeline():
         # 2a. Try direct website scraping first if available
         website = lead_dict.get("website")
         if website:
-            print(f"[PIPELINE] Attempting to scrape website directly: {website}")
+            print(f"[EMAIL] Website scraping started: {website}")
             email = leads_handler.scrape_email_from_website(website)
+            if email:
+                print(f"[EMAIL] Found from website: {email}")
             
         # 2b. Fallback to DuckDuckGo/Brave Search
         if not email:
-            print(f"[PIPELINE] Using search engine fallback...")
+            print(f"[EMAIL] Website failed, using DuckDuckGo...")
             email = leads_handler.search_duckduckgo_for_email(lead_dict["name"], lead_dict["address"])
         if email:
             print(f"[PIPELINE] Found email '{email}' for '{lead_dict['name']}'.")
@@ -112,7 +114,7 @@ def process_leads_pipeline():
             if lead_dict["status"] != "has_website":
                 database.update_lead_status(lead_id, "pending_outreach")
         else:
-            print(f"[PIPELINE] No email found for '{lead_dict['name']}'. Marking as no_email_found.")
+            print(f"[PIPELINE] Lead marked no_email_found.")
             database.update_lead_status(lead_id, "no_email_found")
             
         # Small delay to avoid rate limiting

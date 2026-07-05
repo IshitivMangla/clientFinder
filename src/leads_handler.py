@@ -7,11 +7,11 @@ import requests
 
 import time
 
-def safe_request(url, retries=3, **kwargs):
+def safe_request(url, retries=2, **kwargs):
     for attempt in range(retries):
         try:
             if 'timeout' not in kwargs:
-                kwargs['timeout'] = 30
+                kwargs['timeout'] = 10
             return requests.get(url, **kwargs)
         except Exception as e:
             print(f"Request to {url} failed: {e}. Retrying {attempt+1}/{retries}...")
@@ -25,6 +25,17 @@ from . import database
 def valid_email(email):
     pattern = r'^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
+
+
+def clean_business_name(name):
+    """Strip legal entities, brand names, and special chars for better search results."""
+    # Remove by Wyndham, by IHG, Tribute Portfolio, LLC, Inc
+    cleaned = re.sub(r'(?i)\b(?:by Wyndham|by IHG|Tribute Portfolio|LLC|Inc)\b', '', name)
+    # Remove commas, hyphens, special chars
+    cleaned = re.sub(r'[^a-zA-Z0-9\s]', ' ', cleaned)
+    # Collapse multiple spaces
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
 
 def get_us_locations():
     # us_locations.csv is in the project root
@@ -171,7 +182,7 @@ def discover_leads_from_google_places(is_cancelled=None):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-                    if det_res.status_code == 200:
+                    if det_res is not None and det_res.status_code == 200:
                         det_data = det_res.json()
                         if det_data.get("result") and det_data["result"].get("website"):
                             website = det_data["result"]["website"].strip()
@@ -230,7 +241,7 @@ def scrape_email_from_website(url):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-        if response.status_code != 200:
+        if response is None or response.status_code != 200:
             return None
             
         # 1. Check homepage body
@@ -250,24 +261,20 @@ def scrape_email_from_website(url):
         if found_emails:
             return list(found_emails)[0]
             
-        # 3. Network path analysis - look for contact/about pages
-        links_to_crawl = []
-        for a in soup.find_all('a', href=True):
-            href = a['href'].lower()
-            if 'contact' in href or 'about' in href or 'reach' in href or 'support' in href:
-                full_link = urllib.parse.urljoin(url, a['href'])
-                if full_link not in links_to_crawl and full_link.startswith('http'):
-                    links_to_crawl.append(full_link)
-                    
-        # Crawl up to 3 relevant sub-pages
-        for sub_url in links_to_crawl[:3]:
+        # 3. Explicitly scrape hardcoded contact paths as requested
+        paths = ['/contact', '/contact-us', '/about', '/team']
+        base_url = url.rstrip('/')
+        links_to_crawl = [base_url + p for p in paths]
+        
+        # Crawl the explicit sub-pages
+        for sub_url in links_to_crawl:
             try:
                 sub_res = safe_request(
      sub_url, headers=headers,
      timeout=30,
      verify=config.VERIFY_SSL
  )
-                if sub_res.status_code == 200:
+                if sub_res is not None and sub_res.status_code == 200:
                     found_emails.update(extract_emails_from_text(sub_res.text, exclude_domains))
                     # Check mailto on subpages too
                     sub_soup = BeautifulSoup(sub_res.text, "html.parser")
@@ -289,6 +296,7 @@ def scrape_email_from_website(url):
     return list(found_emails)[0] if found_emails else None
 
 def search_duckduckgo_for_email(business_name, address):
+    business_name = clean_business_name(business_name)
     # Extract clean address components
     street = ""
     city = ""
@@ -340,7 +348,7 @@ def search_duckduckgo_for_email(business_name, address):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-            if response.status_code == 200:
+            if response is not None and response.status_code == 200:
                 found = email_regex.findall(response.text)
                 for email in found:
                     if not any(email.lower().endswith(dom) for dom in exclude_domains):
@@ -359,7 +367,7 @@ def search_duckduckgo_for_email(business_name, address):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-            if response.status_code == 200:
+            if response is not None and response.status_code == 200:
                 found = email_regex.findall(response.text)
                 for email in found:
                     if not any(email.lower().endswith(dom) for dom in exclude_domains):
@@ -378,7 +386,7 @@ def search_duckduckgo_for_email(business_name, address):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-            if response.status_code == 200:
+            if response is not None and response.status_code == 200:
                 soup = BeautifulSoup(response.text, "html.parser")
                 snippets = soup.find_all(class_="result__snippet")
                 
