@@ -784,12 +784,19 @@ const TITLES = {leads:'Leads',analytics:'Analytics',controls:'Controls',template
     return `<tr class="${rc}">
       <td><div class="ln">${hEsc(l.name||'Unknown')}</div><div class="la"><i class="fa-solid fa-location-dot"></i>${hEsc(l.address||'—')}</div></td>
       <td>${typeBadge}</td>
-      <td>${emailCell}</td>
-      <td>${webCell}</td>
-      <td>${statusBadge}</td>
-      <td><div class="acts">${sendBtn}${webBtn}</div></td>
-    </tr>`;
-  }).join('');,   s.outreached ?? '—');
+/* ══════════════════════════════════════════
+   STATS
+══════════════════════════════════════════ */
+async function fetchStats() {
+  try {
+    const res = await fetch('/api/stats');
+    if (!res.ok) return;
+    const d = await res.json();
+    const s = d.counts || {};
+    setText('k-total', s.total_leads ?? '—');
+    setText('k-res',   s.restaurant_count ?? '—');
+    setText('k-hot',   s.hotel_count ?? '—');
+    setText('k-out',   s.outreached ?? '—');
     setText('k-eng',   s.engaged ?? '—');
     setText('k-pend',  s.pending_count ?? '—');
     setText('n-total', (s.restaurant_count||0) + (s.hotel_count||0));

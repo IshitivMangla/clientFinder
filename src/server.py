@@ -181,7 +181,7 @@ def scheduler_loop():
 
 
 @app.on_event("startup")
-def start_scheduler():
+def startup():
     import threading
     thread = threading.Thread(
         target=scheduler_loop,
@@ -198,15 +198,22 @@ def verify_api_auth(auth_token: str = Cookie(None)):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 # API Endpoints & Auth Routes
-@app.get("/", response_class=HTMLResponse)
-def get_dashboard(auth_token: str = Cookie(None)):
+@app.get("/")
+def dashboard(auth_token: str = Cookie(None)):
     expected_password = config.DASHBOARD_PASSWORD
     if expected_password and auth_token != expected_password:
-        login_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "login.html")
-        if not os.path.exists(login_path):
+        login_path = BASE_DIR / "login.html"
+        if not login_path.exists():
             return HTMLResponse(content="<h1>Outreach Bot Login</h1><p>login.html template file not found</p>", status_code=404)
         with open(login_path, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
+            
+    dashboard_path = BASE_DIR / "dashboard.html"
+    if not dashboard_path.exists():
+        return HTMLResponse(content="<h1>Outreach Bot</h1><p>dashboard.html template file not found</p>", status_code=404)
+        
+    with open(dashboard_path, "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
             
     dashboard_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.html")
     if not os.path.exists(dashboard_path):
