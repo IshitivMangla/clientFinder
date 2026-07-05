@@ -21,29 +21,35 @@ def run_discovery_cycle():
         
     added_count = 0
     for dl in discovered_leads:
-        if leads_handler.is_restaurant_or_hotel(dl["type"]):
-            if not dl["website"] or not dl["website"].strip():
-                lead_id = database.add_lead(
-                    name=dl["name"],
-                    email=dl["email"],
-                    website=dl["website"],
-                    lead_type=dl["type"],
-                    address=dl["address"],
-                    source=dl["source"],
-                    status="pending"
-                )
-                if lead_id:
-                    added_count += 1
+        if not leads_handler.is_restaurant_or_hotel(dl["type"]):
+            continue  # Only store restaurants and hotels
+            
+        has_website = bool(dl.get("website") and dl["website"].strip())
+        # Store ALL restaurants and hotels regardless of website status
+        status = "has_website" if has_website else "pending"
+        lead_id = database.add_lead(
+            name=dl["name"],
+            email=dl.get("email", ""),
+            website=dl.get("website", ""),
+            lead_type=dl["type"],
+            address=dl["address"],
+            source=dl["source"],
+            status=status
+        )
+        if lead_id:
+            added_count += 1
                     
     print(f"[SUCCESS] Lead discovery cycle finished. Added {added_count} new leads to database.")
 
+
 def process_single_lead_pipeline():
+    """Find email for ONE lead — prioritises no-website leads but also picks up has_website leads."""
     print("[INFO] Running single lead processing pipeline (email lookup)...")
     
     conn = database.get_db_connection()
     cursor = conn.cursor()
     try:
-        # Find the first lead that is pending/discovered and doesn't have an email yet
+        # Priority 1: pending leads (no website) with no email
         cursor.execute("""
         SELECT * FROM leads 
         WHERE status IN ('pending', 'discovered') 
@@ -51,6 +57,16 @@ def process_single_lead_pipeline():
         ORDER BY id ASC LIMIT 1
         """)
         lead = cursor.fetchone()
+
+        # Priority 2: has_website leads that still have no email (so we can reach them too)
+        if not lead:
+            cursor.execute("""
+            SELECT * FROM leads 
+            WHERE status = 'has_website'
+              AND (email IS NULL OR email = '')
+            ORDER BY id ASC LIMIT 1
+            """)
+            lead = cursor.fetchone()
     except Exception as e:
         print(f"[ERROR] Failed to fetch next lead for processing: {e}")
         lead = None
@@ -70,19 +86,15 @@ def process_single_lead_pipeline():
         database.update_lead_status(lead_id, "skipped_type")
         return
         
-    # 2. Double check if website already exists
-    if lead_dict["website"] and lead_dict["website"].strip():
-        print(f"[PIPELINE] Skipping '{lead_dict['name']}' - website already exists ({lead_dict['website']}).")
-        database.update_lead_status(lead_id, "skipped_website")
-        return
-        
-    # 3. Search for email
+    # 2. Search for email
     print(f"[PIPELINE] Searching email for '{lead_dict['name']}'...")
     email = leads_handler.search_duckduckgo_for_email(lead_dict["name"], lead_dict["address"])
     if email:
         print(f"[PIPELINE] Found email '{email}' for '{lead_dict['name']}'.")
         database.update_lead_email(lead_id, email)
-        database.update_lead_status(lead_id, "pending_outreach")
+        # Only set pending_outreach for no-website leads; keep has_website status for others
+        if lead_dict["status"] != "has_website":
+            database.update_lead_status(lead_id, "pending_outreach")
     else:
         print(f"[PIPELINE] No email found for '{lead_dict['name']}'. Marking as no_email_found.")
         database.update_lead_status(lead_id, "no_email_found")

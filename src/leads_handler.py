@@ -82,7 +82,7 @@ def is_restaurant_or_hotel(lead_type):
     if not lead_type:
         return False
     type_lower = lead_type.lower()
-    keywords = ["restaurant", "hotel", "lodging", "motel", "inn"]
+    keywords = ["restaurant", "food", "cafe", "bar", "pub", "meal_takeaway", "meal_delivery", "hotel", "lodging", "motel", "inn", "resort", "hostel"]
     return any(kw in type_lower for kw in keywords)
 
 def discover_leads_from_google_places(is_cancelled=None):

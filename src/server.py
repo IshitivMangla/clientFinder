@@ -46,7 +46,11 @@ def run_outreach_internal():
             print("[INFO] Outreach run cancelled by user.")
             break
         lead_dict = dict(lead)
-        subject, text, html = email_handler.build_outreach_message(lead_dict)
+        
+        # Decide template type
+        template_type = "has_website" if lead_dict.get("website") else "no_website"
+        
+        subject, text, html = email_handler.build_outreach_message(lead_dict, template_type)
         try:
             print(f"Sending outreach to {lead_dict['name']} ({lead_dict['email']})...")
             message_id = email_handler.send_email(
@@ -68,6 +72,14 @@ def run_outreach_internal():
             # Update status to 'outreached'
             database.update_lead_status(lead_dict["id"], "outreached")
             print(f"Outreach logged successfully for {lead_dict['email']}.")
+            
+            # Rate limit sending to 1 per 5 minutes
+            print(f"[INFO] Waiting 5 minutes before sending the next email...")
+            for _ in range(300):
+                if cancel_requests["outreach"]:
+                    print("[INFO] Outreach run cancelled during wait.")
+                    return
+                time.sleep(1)
             
         except Exception as e:
             print(f"Failed to send outreach to {lead_dict['email']}: {e}")
@@ -204,37 +216,88 @@ def logout(response: Response):
 def get_status():
     conn = database.get_db_connection()
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT count(*) FROM leads")
-    total_leads = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT count(*) FROM leads WHERE status = 'outreached'")
-    outreached = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT count(*) FROM leads WHERE status = 'engaged'")
-    engaged = cursor.fetchone()[0]
-    
-    conn.close()
-    
+    try:
+        cursor.execute("SELECT count(*) FROM leads")
+        total_leads = cursor.fetchone()[0]
+        cursor.execute("SELECT count(*) FROM leads WHERE status = 'outreached'")
+        outreached = cursor.fetchone()[0]
+        cursor.execute("SELECT count(*) FROM leads WHERE status = 'engaged'")
+        engaged = cursor.fetchone()[0]
+        cursor.execute("SELECT count(*) FROM leads WHERE (type LIKE '%restaurant%' OR type LIKE '%food%' OR type LIKE '%cafe%' OR type LIKE '%bar%' OR type LIKE '%pub%' OR type LIKE '%meal_takeaway%' OR type LIKE '%meal_delivery%')")
+        restaurant_count = cursor.fetchone()[0]
+        cursor.execute("SELECT count(*) FROM leads WHERE (type LIKE '%hotel%' OR type LIKE '%lodging%' OR type LIKE '%motel%' OR type LIKE '%inn%' OR type LIKE '%resort%' OR type LIKE '%hostel%')")
+        hotel_count = cursor.fetchone()[0]
+        cursor.execute("SELECT count(*) FROM leads WHERE status IN ('pending','discovered')")
+        pending_count = cursor.fetchone()[0]
+        cursor.execute("SELECT count(*) FROM leads WHERE status = 'pending_outreach'")
+        ready_count = cursor.fetchone()[0]
+    except Exception as e:
+        print(f"[ERROR] Status query failed: {e}")
+        total_leads = outreached = engaged = restaurant_count = hotel_count = pending_count = ready_count = 0
+    finally:
+        conn.close()
     return {
         "stats": {
             "total_leads": total_leads,
             "outreached": outreached,
-            "engaged": engaged
+            "engaged": engaged,
+            "restaurant_count": restaurant_count,
+            "hotel_count": hotel_count,
+            "pending_count": pending_count,
+            "ready_count": ready_count
         },
         "last_checked_time": last_checked_time,
         "active_tasks": active_tasks
     }
 
 @app.get("/api/leads", dependencies=[Depends(verify_api_auth)])
-def get_leads():
+def get_leads(filter: str = "all", type: str = "all"):
     conn = database.get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM leads ORDER BY created_at DESC")
+    conds = ["1=1"]
+    if filter == "pending":          conds.append("status IN ('pending','discovered')")
+    elif filter == "outreached":     conds.append("status = 'outreached'")
+    elif filter == "engaged":        conds.append("status = 'engaged'")
+    elif filter == "pending_outreach": conds.append("status = 'pending_outreach'")
+    elif filter == "no_email":       conds.append("status = 'no_email_found'")
+    if type == "restaurant":  conds.append("(type LIKE '%restaurant%' OR type LIKE '%food%' OR type LIKE '%cafe%' OR type LIKE '%bar%' OR type LIKE '%pub%' OR type LIKE '%meal_takeaway%' OR type LIKE '%meal_delivery%')")
+    elif type == "hotel":     conds.append("(type LIKE '%hotel%' OR type LIKE '%lodging%' OR type LIKE '%motel%' OR type LIKE '%inn%' OR type LIKE '%resort%' OR type LIKE '%hostel%')")
+    where = " AND ".join(conds)
+    cursor.execute(f"SELECT * FROM leads WHERE {where} ORDER BY created_at DESC")
     rows = cursor.fetchall()
     leads = [dict(row) for row in rows]
     conn.close()
     return {"leads": leads}
+
+@app.get("/api/stats/daily", dependencies=[Depends(verify_api_auth)])
+def get_daily_stats():
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT DATE(created_at) as day, COUNT(*) as count
+            FROM leads GROUP BY DATE(created_at)
+            ORDER BY day DESC LIMIT 14
+        """)
+        daily = [{"day": str(r[0]), "count": r[1]} for r in cursor.fetchall()]
+        cursor.execute("SELECT count(*) FROM leads WHERE (type LIKE '%restaurant%' OR type LIKE '%food%' OR type LIKE '%cafe%' OR type LIKE '%bar%' OR type LIKE '%pub%' OR type LIKE '%meal_takeaway%' OR type LIKE '%meal_delivery%')")
+        rc = cursor.fetchone()[0]
+        cursor.execute("SELECT count(*) FROM leads WHERE (type LIKE '%hotel%' OR type LIKE '%lodging%' OR type LIKE '%motel%' OR type LIKE '%inn%' OR type LIKE '%resort%' OR type LIKE '%hostel%')")
+        hc = cursor.fetchone()[0]
+        cursor.execute("SELECT count(*) FROM leads WHERE status = 'outreached'")
+        oc = cursor.fetchone()[0]
+        cursor.execute("SELECT count(*) FROM leads WHERE status IN ('pending','discovered')")
+        pc = cursor.fetchone()[0]
+        cursor.execute("SELECT request_count FROM api_usage_log WHERE api_name='google_places' AND request_date=CURRENT_DATE")
+        row = cursor.fetchone()
+        api_today = row[0] if row else 0
+    except Exception as e:
+        print(f"[ERROR] daily stats failed: {e}")
+        daily, rc, hc, oc, pc, api_today = [], 0, 0, 0, 0, 0
+    finally:
+        conn.close()
+    return {"daily": daily, "restaurant_count": rc, "hotel_count": hc,
+            "outreached_count": oc, "pending_count": pc, "api_used_today": api_today}
 
 
 
@@ -269,8 +332,11 @@ def stop_task(task_name: str):
     cancel_requests[task_name] = True
     return {"message": f"Cancellation request sent for task '{task_name}'."}
 
+class SendEmailRequest(BaseModel):
+    template_type: str = "no_website"
+
 @app.post("/api/leads/{lead_id}/send-email", dependencies=[Depends(verify_api_auth)])
-def send_lead_email(lead_id: int):
+def send_lead_email(lead_id: int, req: SendEmailRequest = None):
     conn = database.get_db_connection()
     cursor = conn.cursor()
     try:
@@ -288,8 +354,10 @@ def send_lead_email(lead_id: int):
     if not lead_dict.get("email"):
         raise HTTPException(status_code=400, detail="Lead does not have an email address")
         
+    template_type = req.template_type if req else "no_website"
+        
     try:
-        subject, text, html = email_handler.build_outreach_message(lead_dict)
+        subject, text, html = email_handler.build_outreach_message(lead_dict, template_type)
         
         message_id = email_handler.send_email(
             to_email=lead_dict["email"],
