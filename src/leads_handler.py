@@ -182,7 +182,9 @@ def discover_leads_from_google_places(is_cancelled=None):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-                    if det_res is not None and det_res.status_code == 200:
+                    if det_res is None:
+                        continue
+                    if det_res.status_code == 200:
                         det_data = det_res.json()
                         if det_data.get("result") and det_data["result"].get("website"):
                             website = det_data["result"]["website"].strip()
@@ -241,7 +243,9 @@ def scrape_email_from_website(url):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-        if response is None or response.status_code != 200:
+        if response is None:
+            return None
+        if response.status_code != 200:
             return None
             
         # 1. Check homepage body
@@ -274,7 +278,9 @@ def scrape_email_from_website(url):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-                if sub_res is not None and sub_res.status_code == 200:
+                if sub_res is None:
+                    continue
+                if sub_res.status_code == 200:
                     found_emails.update(extract_emails_from_text(sub_res.text, exclude_domains))
                     # Check mailto on subpages too
                     sub_soup = BeautifulSoup(sub_res.text, "html.parser")
@@ -307,13 +313,11 @@ def search_duckduckgo_for_email(business_name, address):
         if len(parts) > 1:
             city = parts[1]
             
-    # Build fallback queries (from most specific to broadest)
+    # Build short fallback queries
     queries = []
-    if street and city:
-        queries.append(f"{business_name} {street} {city} email")
     if city:
-        queries.append(f"{business_name} {city} email")
-    queries.append(f"{business_name} email")
+        queries.append(f"{business_name} {city} contact email")
+    queries.append(f"{business_name} contact email")
     
     # De-duplicate queries
     seen = set()
@@ -348,7 +352,9 @@ def search_duckduckgo_for_email(business_name, address):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-            if response is not None and response.status_code == 200:
+            if response is None:
+                return None
+            if response.status_code == 200:
                 found = email_regex.findall(response.text)
                 for email in found:
                     if not any(email.lower().endswith(dom) for dom in exclude_domains):
@@ -367,7 +373,9 @@ def search_duckduckgo_for_email(business_name, address):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-            if response is not None and response.status_code == 200:
+            if response is None:
+                return None
+            if response.status_code == 200:
                 found = email_regex.findall(response.text)
                 for email in found:
                     if not any(email.lower().endswith(dom) for dom in exclude_domains):
@@ -386,7 +394,9 @@ def search_duckduckgo_for_email(business_name, address):
      timeout=30,
      verify=config.VERIFY_SSL
  )
-            if response is not None and response.status_code == 200:
+            if response is None:
+                return None
+            if response.status_code == 200:
                 soup = BeautifulSoup(response.text, "html.parser")
                 snippets = soup.find_all(class_="result__snippet")
                 
