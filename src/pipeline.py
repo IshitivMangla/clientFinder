@@ -47,7 +47,7 @@ def process_leads_pipeline():
     print("[INFO] Running lead processing pipeline (email lookup)...")
     
     import time
-    for _ in range(15):
+    for _ in range(1):
         conn = database.get_db_connection()
         cursor = conn.cursor()
         try:

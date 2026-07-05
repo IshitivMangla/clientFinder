@@ -4,9 +4,27 @@ import urllib.parse
 import csv
 from pathlib import Path
 import requests
+
+import time
+
+def safe_request(url, retries=3, **kwargs):
+    for attempt in range(retries):
+        try:
+            if 'timeout' not in kwargs:
+                kwargs['timeout'] = 30
+            return requests.get(url, **kwargs)
+        except Exception as e:
+            print(f"Request to {url} failed: {e}. Retrying {attempt+1}/{retries}...")
+            time.sleep(5)
+    return None
 from bs4 import BeautifulSoup
 from . import config
 from . import database
+
+
+def valid_email(email):
+    pattern = r'^[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email))
 
 def get_us_locations():
     # us_locations.csv is in the project root
@@ -122,7 +140,11 @@ def discover_leads_from_google_places(is_cancelled=None):
         if not database.enforce_rate_limit("google_places", 300, is_cancelled):
             return []
         database.increment_api_usage("google_places")
-        response = requests.get(url, params=params, timeout=15, verify=config.VERIFY_SSL)
+        response = safe_request(
+     url, params=params,
+     timeout=30,
+     verify=config.VERIFY_SSL
+ )
         response.raise_for_status()
         data = response.json()
         results = data.get("results") or []
@@ -144,7 +166,11 @@ def discover_leads_from_google_places(is_cancelled=None):
                         "fields": "website",
                         "key": config.GOOGLE_PLACES_API_KEY
                     }
-                    det_res = requests.get(details_url, params=details_params, timeout=10, verify=config.VERIFY_SSL)
+                    det_res = safe_request(
+     details_url, params=details_params,
+     timeout=30,
+     verify=config.VERIFY_SSL
+ )
                     if det_res.status_code == 200:
                         det_data = det_res.json()
                         if det_data.get("result") and det_data["result"].get("website"):
@@ -171,7 +197,8 @@ def extract_emails_from_text(text, exclude_domains):
     found = email_regex.findall(text)
     for email in found:
         if not any(email.lower().endswith(dom) for dom in exclude_domains):
-            emails.add(email.lower())
+                if valid_email(email):
+                    emails.add(email.lower())
     return emails
 
 def scrape_email_from_website(url):
@@ -198,7 +225,11 @@ def scrape_email_from_website(url):
     
     found_emails = set()
     try:
-        response = requests.get(url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
+        response = safe_request(
+     url, headers=headers,
+     timeout=30,
+     verify=config.VERIFY_SSL
+ )
         if response.status_code != 200:
             return None
             
@@ -231,7 +262,11 @@ def scrape_email_from_website(url):
         # Crawl up to 3 relevant sub-pages
         for sub_url in links_to_crawl[:3]:
             try:
-                sub_res = requests.get(sub_url, headers=headers, timeout=8, verify=config.VERIFY_SSL)
+                sub_res = safe_request(
+     sub_url, headers=headers,
+     timeout=30,
+     verify=config.VERIFY_SSL
+ )
                 if sub_res.status_code == 200:
                     found_emails.update(extract_emails_from_text(sub_res.text, exclude_domains))
                     # Check mailto on subpages too
@@ -300,12 +335,17 @@ def search_duckduckgo_for_email(business_name, address):
         # Try Yahoo Search first (less aggressive bot blocking than Brave/DDG)
         try:
             yahoo_url = f"https://search.yahoo.com/search?p={escaped_query}"
-            response = requests.get(yahoo_url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
+            response = safe_request(
+     yahoo_url, headers=headers,
+     timeout=30,
+     verify=config.VERIFY_SSL
+ )
             if response.status_code == 200:
                 found = email_regex.findall(response.text)
                 for email in found:
                     if not any(email.lower().endswith(dom) for dom in exclude_domains):
-                        emails.add(email.lower())
+                            if valid_email(email):
+                                emails.add(email.lower())
                 if emails:
                     break
         except Exception as e:
@@ -314,12 +354,17 @@ def search_duckduckgo_for_email(business_name, address):
         # Try Brave Search
         try:
             brave_url = f"https://search.brave.com/search?q={escaped_query}"
-            response = requests.get(brave_url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
+            response = safe_request(
+     brave_url, headers=headers,
+     timeout=30,
+     verify=config.VERIFY_SSL
+ )
             if response.status_code == 200:
                 found = email_regex.findall(response.text)
                 for email in found:
                     if not any(email.lower().endswith(dom) for dom in exclude_domains):
-                        emails.add(email.lower())
+                            if valid_email(email):
+                                emails.add(email.lower())
                 if emails:
                     break
         except Exception as e:
@@ -328,7 +373,11 @@ def search_duckduckgo_for_email(business_name, address):
         # Try DuckDuckGo fallback
         try:
             ddg_url = f"https://html.duckduckgo.com/html/?q={escaped_query}"
-            response = requests.get(ddg_url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
+            response = safe_request(
+     ddg_url, headers=headers,
+     timeout=30,
+     verify=config.VERIFY_SSL
+ )
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, "html.parser")
                 snippets = soup.find_all(class_="result__snippet")
@@ -338,7 +387,8 @@ def search_duckduckgo_for_email(business_name, address):
                     found = email_regex.findall(text)
                     for email in found:
                         if not any(email.lower().endswith(dom) for dom in exclude_domains):
-                            emails.add(email.lower())
+                                if valid_email(email):
+                                    emails.add(email.lower())
                 if emails:
                     break
         except Exception as e:
