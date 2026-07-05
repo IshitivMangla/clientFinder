@@ -19,6 +19,11 @@ database.init_db()
 
 app = FastAPI(title="Outreach Bot API", version="2.0.0")
 
+@app.head("/")
+def health():
+    return {}
+
+
 from fastapi.staticfiles import StaticFiles
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -129,11 +134,24 @@ def outreach_job():
     finally:
         active_tasks["outreach"] = False
 
+pipeline_running = False
+
+def run_pipeline_task():
+    global pipeline_running
+    try:
+        from src.pipeline import run_discovery_cycle, process_leads_pipeline
+        run_discovery_cycle()
+        process_leads_pipeline()
+    except Exception as e:
+        print(f"[ERROR] Pipeline failed: {e}")
+    finally:
+        pipeline_running = False
+
 # Periodic Scheduler Loop
 def scheduler_loop():
     print("[INFO] Background scheduler loop activated.")
+    global pipeline_running
     last_reply_check = 0
-    last_lead_process = 0
     
     # Small startup delay to allow server initialization
     time.sleep(5)
@@ -141,15 +159,12 @@ def scheduler_loop():
     while True:
         now = time.time()
         
-        # 1. Run lead pipeline and discovery cycle every 5 minutes (300 seconds)
-        if now - last_lead_process >= 300:
-            last_lead_process = now
-            try:
-                from src.pipeline import run_discovery_cycle, process_leads_pipeline
-                threading.Thread(target=run_discovery_cycle, daemon=True).start()
-                threading.Thread(target=process_leads_pipeline, daemon=True).start()
-            except Exception as e:
-                print(f"[ERROR] Failed to start lead pipeline/discovery threads: {e}")
+        # 1. Run lead pipeline and discovery cycle
+        if pipeline_running:
+            print("[INFO] Previous cycle still running. Skipping.")
+        else:
+            pipeline_running = True
+            threading.Thread(target=run_pipeline_task, daemon=True).start()
                 
         # 2. Run reply checker every 1 hour (3600 seconds)
         if now - last_reply_check >= 3600:
@@ -159,7 +174,8 @@ def scheduler_loop():
             except Exception as e:
                 print(f"[ERROR] Failed to start reply checker thread: {e}")
                 
-        time.sleep(10)
+        time.sleep(300)
+
 
 # Start scheduler thread
 scheduler_thread = threading.Thread(target=scheduler_loop, daemon=True)

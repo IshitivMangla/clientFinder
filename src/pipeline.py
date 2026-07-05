@@ -47,7 +47,7 @@ def process_leads_pipeline():
     print("[INFO] Running lead processing pipeline (email lookup)...")
     
     import time
-    for _ in range(1):
+    for _ in range(20):
         conn = database.get_db_connection()
         cursor = conn.cursor()
         try:
@@ -82,6 +82,9 @@ def process_leads_pipeline():
         lead_dict = dict(lead)
         lead_id = lead_dict["id"]
         
+        # Mark as processing immediately to prevent duplicate runs
+        database.update_lead_status(lead_id, "processing")
+        
         # 1. Double check type is restaurant or hotel
         if not leads_handler.is_restaurant_or_hotel(lead_dict["type"]):
             print(f"[PIPELINE] Skipping '{lead_dict['name']}' (Type: {lead_dict['type']}) - not a restaurant or hotel.")
@@ -113,4 +116,7 @@ def process_leads_pipeline():
             database.update_lead_status(lead_id, "no_email_found")
             
         # Small delay to avoid rate limiting
-        time.sleep(2)
+        import random
+        delay = random.randint(20, 40)
+        print(f"[PIPELINE] Sleeping for {delay} seconds...")
+        time.sleep(delay)
