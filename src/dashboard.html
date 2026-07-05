@@ -721,9 +721,11 @@ window.onerror = function(msg,file,line){
 /* ══════════════════════════════════════════
    STATE
 ══════════════════════════════════════════ */
+window.segStatus = 'all';
+window.segType = 'all';
 let leads     = [];
-let segStatus = 'all';
-let segType   = 'all';
+
+
 let chartLine = null;
 let chartDonut= null;
 
@@ -792,7 +794,7 @@ async function fetchStats() {
 ══════════════════════════════════════════ */
 async function fetchLeads() {
   try {
-    const res = await fetch(`/api/leads?filter=${segStatus}&type=${segType}`);
+    const res = await fetch(`/api/leads?filter=${window.segStatus}&type=${window.segType}&_t=${new Date().getTime()}`);
     if (!res.ok) { throw Error(res.status); }
     const d = await res.json();
     leads = d.leads || [];
@@ -1083,7 +1085,7 @@ window.setSeg = function(key, val, btn) {
     btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
   }
-  if (typeof renderLeads === 'function') renderLeads();
+  if (typeof fetchLeads === 'function') fetchLeads();
 };
 
 window.go = function(page, btn) {
