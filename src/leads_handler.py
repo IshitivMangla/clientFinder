@@ -277,7 +277,21 @@ def search_duckduckgo_for_email(business_name, address):
     for query in clean_queries:
         escaped_query = urllib.parse.quote(query)
         
-        # Try Brave Search first
+        # Try Yahoo Search first (less aggressive bot blocking than Brave/DDG)
+        try:
+            yahoo_url = f"https://search.yahoo.com/search?p={escaped_query}"
+            response = requests.get(yahoo_url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
+            if response.status_code == 200:
+                found = email_regex.findall(response.text)
+                for email in found:
+                    if not any(email.lower().endswith(dom) for dom in exclude_domains):
+                        emails.add(email.lower())
+                if emails:
+                    break
+        except Exception as e:
+            print(f"Yahoo Search error for query '{query}': {e}")
+            
+        # Try Brave Search
         try:
             brave_url = f"https://search.brave.com/search?q={escaped_query}"
             response = requests.get(brave_url, headers=headers, timeout=10, verify=config.VERIFY_SSL)
