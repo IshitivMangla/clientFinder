@@ -132,10 +132,30 @@ def discover_leads_from_google_places(is_cancelled=None):
             types_list = item.get("types") or []
             lead_type = ", ".join(types_list) if types_list else "business"
             
+            place_id = item.get("place_id")
+            website = item.get("website", "").strip()
+            
+            # TextSearch rarely returns website. Fetch Place Details to get it!
+            if not website and place_id:
+                try:
+                    details_url = "https://maps.googleapis.com/maps/api/place/details/json"
+                    details_params = {
+                        "place_id": place_id,
+                        "fields": "website",
+                        "key": config.GOOGLE_PLACES_API_KEY
+                    }
+                    det_res = requests.get(details_url, params=details_params, timeout=10, verify=config.VERIFY_SSL)
+                    if det_res.status_code == 200:
+                        det_data = det_res.json()
+                        if det_data.get("result") and det_data["result"].get("website"):
+                            website = det_data["result"]["website"].strip()
+                except Exception as e:
+                    print(f"Failed to fetch place details for {place_id}: {e}")
+            
             leads.append({
                 "name": item.get("name", "").strip(),
                 "address": item.get("formatted_address", "").strip(),
-                "website": item.get("website", "").strip(),
+                "website": website,
                 "type": lead_type,
                 "source": "google_places",
                 "email": ""
