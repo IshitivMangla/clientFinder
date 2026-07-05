@@ -177,9 +177,14 @@ def scheduler_loop():
         time.sleep(300)
 
 
-# Start scheduler thread
-scheduler_thread = threading.Thread(target=scheduler_loop, daemon=True)
-scheduler_thread.start()
+@app.on_event("startup")
+def start_scheduler():
+    import threading
+    thread = threading.Thread(
+        target=scheduler_loop,
+        daemon=True
+    )
+    thread.start()
 
 # API Auth Dependency
 def verify_api_auth(auth_token: str = Cookie(None)):
