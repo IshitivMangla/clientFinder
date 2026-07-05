@@ -1068,6 +1068,38 @@ function clog(msg, lvl='i') {
 ══════════════════════════════════════════ */
 function setText(id, val) { const e=document.getElementById(id); if(e) e.textContent=val; }
 function esc(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+// Globals for inline handlers
+window.setSeg = function(key, val, btn) {
+  if (key === 'status') window.segStatus = val;
+  if (key === 'type') window.segType = val;
+  if (btn && btn.parentElement) {
+    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  if (typeof renderLeads === 'function') renderLeads();
+};
+
+window.go = function(page, btn) {
+  if (typeof nav === 'function') nav(page);
+};
+
+window.login = function() {};
+window.refreshData = function() {
+    if (typeof fetchStats === 'function') fetchStats();
+    if (typeof fetchLeads === 'function') fetchLeads();
+};
+
+if (typeof trigger === 'function') window.trigger = trigger;
+if (typeof openSite === 'function') window.openSite = openSite;
+if (typeof nav === 'function') window.nav = nav;
+if (typeof sendEmail === 'function') window.sendEmail = sendEmail;
+if (typeof renderLeads === 'function') window.renderLeads = renderLeads;
+if (typeof fmtUrl === 'function') window.fmtUrl = fmtUrl;
+if (typeof hEsc === 'function') window.hEsc = hEsc;
+
+console.log("Dashboard JS loaded");
+
 </script>
 </body>
 </html>
