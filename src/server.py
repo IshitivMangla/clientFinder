@@ -338,7 +338,7 @@ def get_daily_stats():
         oc = cursor.fetchone()[0]
         cursor.execute("SELECT count(*) FROM leads WHERE status IN ('pending','discovered')")
         pc = cursor.fetchone()[0]
-        cursor.execute("SELECT request_count FROM api_usage_log WHERE api_name='google_places' AND request_date=CURRENT_DATE::date")
+        cursor.execute("SELECT request_count FROM api_usage_log WHERE api_name='google_places' AND request_date=CURRENT_DATE::text")
         row = cursor.fetchone()
         api_today = row[0] if row else 0
     except Exception as e:
