@@ -4,7 +4,7 @@ import time
 import datetime
 import threading
 from fastapi import FastAPI, HTTPException, Cookie, Response, Form, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from pydantic import BaseModel
 from src import config
 
@@ -401,3 +401,7 @@ def send_lead_email(lead_id: int, req: SendEmailRequest = None):
         print(f"[ERROR] Failed to send manual outreach to {lead_dict['email']}: {e}")
         database.update_lead_status(lead_id, "failed_outreach")
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse("src/static/favicon.ico")
