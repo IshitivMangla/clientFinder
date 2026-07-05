@@ -12,7 +12,7 @@ from src import config
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src import database, leads_handler, email_handler, replies_handler
-from src.pipeline import process_single_lead_pipeline
+from src.pipeline import process_leads_pipeline
 
 # Initialize database tables on startup
 database.init_db()
