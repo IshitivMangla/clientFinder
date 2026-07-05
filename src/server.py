@@ -187,7 +187,7 @@ def get_dashboard(auth_token: str = Cookie(None)):
     dashboard_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.html")
     if not os.path.exists(dashboard_path):
         raise HTTPException(status_code=404, detail="Dashboard UI file not found")
-    with open(dashboard_path, "r", encoding="utf-8") as f:
+    with open(dashboard_path, "r", encoding="utf-8", errors="replace") as f:
         return HTMLResponse(content=f.read())
 
 @app.post("/login")
