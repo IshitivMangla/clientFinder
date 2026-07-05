@@ -19,6 +19,9 @@ database.init_db()
 
 app = FastAPI(title="Outreach Bot API", version="2.0.0")
 
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # Scheduler state variables
 last_checked_time = None
 active_tasks = {
@@ -126,13 +129,15 @@ def scheduler_loop():
     while True:
         now = time.time()
         
-        # 1. Run lead pipeline every 5 minutes (300 seconds)
+        # 1. Run lead pipeline and discovery cycle every 5 minutes (300 seconds)
         if now - last_lead_process >= 300:
             last_lead_process = now
             try:
+                from src.pipeline import run_discovery_cycle
+                threading.Thread(target=run_discovery_cycle, daemon=True).start()
                 threading.Thread(target=process_single_lead_pipeline, daemon=True).start()
             except Exception as e:
-                print(f"[ERROR] Failed to start lead pipeline thread: {e}")
+                print(f"[ERROR] Failed to start lead pipeline/discovery threads: {e}")
                 
         # 2. Run reply checker every 1 hour (3600 seconds)
         if now - last_reply_check >= 3600:
@@ -263,3 +268,47 @@ def stop_task(task_name: str):
         
     cancel_requests[task_name] = True
     return {"message": f"Cancellation request sent for task '{task_name}'."}
+
+@app.post("/api/leads/{lead_id}/send-email", dependencies=[Depends(verify_api_auth)])
+def send_lead_email(lead_id: int):
+    conn = database.get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM leads WHERE id = %s", (lead_id,))
+        lead = cursor.fetchone()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database query error: {str(e)}")
+    finally:
+        conn.close()
+        
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+        
+    lead_dict = dict(lead)
+    if not lead_dict.get("email"):
+        raise HTTPException(status_code=400, detail="Lead does not have an email address")
+        
+    try:
+        subject, text, html = email_handler.build_outreach_message(lead_dict)
+        
+        message_id = email_handler.send_email(
+            to_email=lead_dict["email"],
+            subject=subject,
+            text_content=text,
+            html_content=html
+        )
+        
+        database.log_message(
+            lead_id=lead_id,
+            message_id=message_id,
+            direction="outbound",
+            subject=subject,
+            body=text
+        )
+        
+        database.update_lead_status(lead_id, "outreached")
+        return {"message": f"Successfully sent outreach email to {lead_dict['email']}."}
+    except Exception as e:
+        print(f"[ERROR] Failed to send manual outreach to {lead_dict['email']}: {e}")
+        database.update_lead_status(lead_id, "failed_outreach")
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")

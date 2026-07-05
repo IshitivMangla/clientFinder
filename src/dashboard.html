@@ -596,6 +596,62 @@
             margin-bottom: 1rem;
             opacity: 0.3;
         }
+
+        /* Action Buttons and Cell Layout */
+        .actions-cell-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .action-mini-btn {
+            font-family: var(--font-body);
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid var(--card-border);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .action-mini-btn.send-btn {
+            background: var(--color-primary-glow);
+            color: #a5b4fc;
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+
+        .action-mini-btn.send-btn:hover {
+            background: var(--color-primary);
+            color: #ffffff;
+            border-color: var(--color-primary);
+            transform: translateY(-1px);
+        }
+
+        .action-mini-btn.web-btn {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+        }
+
+        .action-mini-btn.web-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--text-secondary);
+            transform: translateY(-1px);
+        }
+        
+        .action-mini-btn:active {
+            transform: translateY(0);
+        }
+
+        .action-mini-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
     </style>
 </head>
 <body>
@@ -687,6 +743,23 @@
                     </div>
                 </div>
 
+                <div class="panel">
+                    <div class="panel-title">
+                        <i class="fa-solid fa-laptop-code"></i> Pitch Website Designs
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; display: flex; flex-direction: column; gap: 1rem;">
+                        <p>We showcase these high-converting website mockup designs in email pitches to convert new restaurant and hotel owners:</p>
+                        <div>
+                            <strong style="color: white; display: block; margin-bottom: 4px;">1. Gourmet Restaurant Design</strong>
+                            <img src="/static/images/restaurant_mockup.png" style="width: 100%; border-radius: 8px; border: 1px solid var(--card-border); margin-top: 4px; display: block;" />
+                        </div>
+                        <div>
+                            <strong style="color: white; display: block; margin-bottom: 4px;">2. Luxury Hotel Design</strong>
+                            <img src="/static/images/hotel_mockup.png" style="width: 100%; border-radius: 8px; border: 1px solid var(--card-border); margin-top: 4px; display: block;" />
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <!-- Right Side: Leads Table -->
@@ -718,6 +791,7 @@
                                 <th>Email</th>
                                 <th>Source</th>
                                 <th>Status</th>
+                                <th style="text-align: right;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="leads-tbody">
@@ -862,7 +936,9 @@
             
             let filtered = allLeads;
             
-            if (currentFilter !== 'all') {
+            if (currentFilter === 'pending') {
+                filtered = filtered.filter(lead => lead.status === 'pending' || lead.status === 'pending_outreach');
+            } else if (currentFilter !== 'all') {
                 filtered = filtered.filter(lead => lead.status === currentFilter);
             }
             
@@ -878,7 +954,7 @@
             if (filtered.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="4" class="empty-state">
+                        <td colspan="5" class="empty-state">
                             <i class="fa-solid fa-box-open"></i>
                             <p>No leads found matching current criteria.</p>
                         </td>
@@ -892,6 +968,14 @@
                 if (lead.status === 'outreached') badgeClass = 'badge-outreached';
                 if (lead.status === 'engaged') badgeClass = 'badge-engaged';
                 if (lead.status === 'ignored' || lead.status === 'no_email') badgeClass = 'badge-ignored';
+                if (lead.status === 'pending_outreach') badgeClass = 'badge-pending';
+                
+                const canSend = lead.email && lead.email.trim() !== '';
+                const sendBtn = canSend 
+                    ? `<button class="action-mini-btn send-btn" onclick="sendEmailDirectly(${lead.id}, this)" title="Send Outreach Email"><i class="fa-solid fa-paper-plane"></i> Send Email</button>`
+                    : `<button class="action-mini-btn send-btn" disabled title="No Email Address"><i class="fa-solid fa-paper-plane"></i> Send Email</button>`;
+                
+                const showWebBtn = `<button class="action-mini-btn web-btn" onclick="showLeadWebsite('${lead.website || ''}', '${lead.name.replace(/'/g, "\\'")}', '${(lead.address || '').replace(/'/g, "\\'")}')" title="Show Website"><i class="fa-solid fa-globe"></i> Website</button>`;
                 
                 return `
                     <tr>
@@ -902,13 +986,19 @@
                             </div>
                         </td>
                         <td>
-                            <div style="font-family: monospace;">${lead.email}</div>
+                            <div style="font-family: monospace;">${lead.email || 'No email found'}</div>
                         </td>
                         <td>
                             <span class="lead-source">${lead.source}</span>
                         </td>
                         <td>
                             <span class="badge ${badgeClass}">${lead.status}</span>
+                        </td>
+                        <td>
+                            <div class="actions-cell-wrapper">
+                                ${sendBtn}
+                                ${showWebBtn}
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -941,6 +1031,50 @@
                 showToast(`Network error triggering ${taskName}`, 'error');
             } finally {
                 fetchStats();
+            }
+        }
+
+        async function sendEmailDirectly(leadId, buttonElement) {
+            const originalHtml = buttonElement.innerHTML;
+            buttonElement.disabled = true;
+            buttonElement.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending...`;
+            
+            showToast("Sending manual outreach email...", "info");
+            
+            try {
+                const res = await fetch(`/api/leads/${leadId}/send-email`, {
+                    method: 'POST'
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(data.message, 'success');
+                    fetchStats();
+                    fetchLeads();
+                } else {
+                    const errData = await res.json();
+                    showToast(errData.detail || 'Failed to send email', 'error');
+                    buttonElement.disabled = false;
+                    buttonElement.innerHTML = originalHtml;
+                }
+            } catch (err) {
+                console.error("Error sending email:", err);
+                showToast("Network error sending email", "error");
+                buttonElement.disabled = false;
+                buttonElement.innerHTML = originalHtml;
+            }
+        }
+
+        function showLeadWebsite(url, name, address) {
+            if (url && url.trim() !== '' && url !== 'None') {
+                let targetUrl = url.trim();
+                if (!/^https?:\/\//i.test(targetUrl)) {
+                    targetUrl = 'http://' + targetUrl;
+                }
+                window.open(targetUrl, '_blank');
+            } else {
+                const query = encodeURIComponent(name + ' ' + (address || ''));
+                window.open('https://www.google.com/search?q=' + query, '_blank');
             }
         }
 

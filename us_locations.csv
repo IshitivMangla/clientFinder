@@ -1,0 +1,61 @@
+city,state,latitude,longitude
+Asheville,NC,35.5951,-82.5515
+Greenville,SC,34.8526,-82.394
+Spartanburg,SC,34.9496,-81.932
+Charleston,SC,32.7765,-79.9311
+Savannah,GA,32.0809,-81.0912
+Athens,GA,33.9519,-83.3576
+Macon,GA,32.8407,-83.6324
+Augusta,GA,33.4735,-82.0105
+Pensacola,FL,30.4213,-87.2169
+Sarasota,FL,27.3364,-82.5307
+Lakeland,FL,28.0395,-81.9498
+Ocala,FL,29.1872,-82.1401
+Fort Myers,FL,26.6406,-81.8723
+Gainesville,FL,29.6516,-82.3248
+Mobile,AL,30.6954,-88.0399
+Huntsville,AL,34.7304,-86.5861
+Montgomery,AL,32.3792,-86.3077
+Birmingham,AL,33.5186,-86.8104
+Knoxville,TN,35.9606,-83.9207
+Chattanooga,TN,35.0456,-85.3097
+Murfreesboro,TN,35.8456,-86.3903
+Johnson City,TN,36.3134,-82.3535
+Lexington,KY,38.0406,-84.5037
+Bowling Green,KY,36.9685,-86.4808
+Evansville,IN,37.9716,-87.5711
+Fort Wayne,IN,41.0793,-85.1394
+South Bend,IN,41.6764,-86.252
+Peoria,IL,40.6936,-89.589
+Springfield,IL,39.7817,-89.6501
+Rockford,IL,42.2711,-89.094
+Madison,WI,43.0731,-89.4012
+Green Bay,WI,44.5133,-88.0133
+Appleton,WI,44.2619,-88.4154
+Duluth,MN,46.7867,-92.1005
+Rochester,MN,44.0121,-92.4802
+Des Moines,IA,41.5868,-93.625
+Cedar Rapids,IA,41.9779,-91.6656
+Omaha,NE,41.2565,-95.9345
+Lincoln,NE,40.8136,-96.7026
+Tulsa,OK,36.154,-95.9928
+Norman,OK,35.2226,-97.4395
+Wichita,KS,37.6872,-97.3301
+Topeka,KS,39.0473,-95.6752
+Springfield,MO,37.2089,-93.2923
+Columbia,MO,38.9517,-92.3341
+Little Rock,AR,34.7465,-92.2896
+Fayetteville,AR,36.0822,-94.1719
+Boise,ID,43.615,-116.2023
+Idaho Falls,ID,43.4927,-112.0408
+Missoula,MT,46.8721,-113.994
+Billings,MT,45.7833,-108.5007
+Bozeman,MT,45.677,-111.0429
+Cheyenne,WY,41.14,-104.8202
+Casper,WY,42.8501,-106.3252
+Bend,OR,44.0582,-121.3153
+Medford,OR,42.3265,-122.8756
+Eugene,OR,44.0521,-123.0868
+Spokane,WA,47.6588,-117.426
+Yakima,WA,46.6021,-120.5059
+Vancouver,WA,45.628,-122.6739
