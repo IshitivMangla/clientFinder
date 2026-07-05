@@ -1,63 +1,57 @@
-import re
+import os
 
 path = 'src/server.py'
 with open(path, 'r', encoding='utf-8') as f:
     content = f.read()
 
-# Replace the scheduler_loop logic
-new_scheduler = '''pipeline_running = False
+# 1. Add pathlib and BASE_DIR
+if 'from pathlib import Path' not in content:
+    # Insert after fastapi imports
+    content = content.replace('from fastapi import FastAPI', 'from pathlib import Path\nfrom fastapi import FastAPI')
+    content = content.replace('app = FastAPI(', 'BASE_DIR = Path(__file__).resolve().parent\n\napp = FastAPI(')
 
-def run_pipeline_task():
-    global pipeline_running
-    try:
-        from src.pipeline import run_discovery_cycle, process_leads_pipeline
-        run_discovery_cycle()
-        process_leads_pipeline()
-    except Exception as e:
-        print(f"[ERROR] Pipeline failed: {e}")
-    finally:
-        pipeline_running = False
+# 2. Fix the static mount
+old_mount1 = 'app.mount("/static", StaticFiles(directory="src/static"), name="static")'
+old_mount2 = 'app.mount("/static", StaticFiles(directory="static"), name="static")'
+new_mount = 'app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")'
 
-# Periodic Scheduler Loop
-def scheduler_loop():
-    print("[INFO] Background scheduler loop activated.")
-    global pipeline_running
-    last_reply_check = 0
-    
-    # Small startup delay to allow server initialization
-    time.sleep(5)
-    
-    while True:
-        now = time.time()
-        
-        # 1. Run lead pipeline and discovery cycle
-        if pipeline_running:
-            print("[INFO] Previous cycle still running. Skipping.")
-        else:
-            pipeline_running = True
-            threading.Thread(target=run_pipeline_task, daemon=True).start()
-                
-        # 2. Run reply checker every 1 hour (3600 seconds)
-        if now - last_reply_check >= 3600:
-            last_reply_check = now
-            try:
-                threading.Thread(target=check_replies_job, daemon=True).start()
-            except Exception as e:
-                print(f"[ERROR] Failed to start reply checker thread: {e}")
-                
-        time.sleep(300)
+if old_mount1 in content:
+    content = content.replace(old_mount1, new_mount)
+elif old_mount2 in content:
+    content = content.replace(old_mount2, new_mount)
+
+# 3. Fix the favicon endpoint
+old_favicon_func = '''
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse("src/static/favicon.ico")
 '''
+new_favicon_func = '''
+@app.get("/favicon.ico")
+def favicon():
+    favicon_path = BASE_DIR / "static/favicon.ico"
+    if favicon_path.exists():
+        return FileResponse(favicon_path)
+    return {"status": "no icon"}
+'''
+if old_favicon_func.strip() in content:
+    content = content.replace(old_favicon_func.strip(), new_favicon_func.strip())
+else:
+    # try replacing line by line
+    content = content.replace('return FileResponse("src/static/favicon.ico")', 'return FileResponse(BASE_DIR / "static/favicon.ico")')
 
-content = re.sub(r'# Periodic Scheduler Loop\ndef scheduler_loop\(\):.*?time\.sleep\(10\)', new_scheduler, content, flags=re.DOTALL)
-
-# Add @app.head("/") endpoint
-head_endpoint = '''
-@app.head("/")
+# 4. Add the health endpoint
+health_func = '''
+@app.get("/health")
 def health():
-    return {}
+    return {
+        "status": "ok"
+    }
 '''
-content = content.replace('app = FastAPI(title="Outreach Bot API", version="2.0.0")', 'app = FastAPI(title="Outreach Bot API", version="2.0.0")\n' + head_endpoint)
+if '@app.get("/health")' not in content:
+    content = content.replace('@app.get("/favicon.ico")', health_func + '\n@app.get("/favicon.ico")')
 
 with open(path, 'w', encoding='utf-8') as f:
     f.write(content)
-print('Refactored server.py')
+
+print("Updated server.py")

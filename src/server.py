@@ -3,6 +3,7 @@ import os
 import time
 import datetime
 import threading
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Cookie, Response, Form, Depends
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from pydantic import BaseModel
@@ -17,6 +18,8 @@ from src.pipeline import process_leads_pipeline
 # Initialize database tables on startup
 database.init_db()
 
+BASE_DIR = Path(__file__).resolve().parent
+
 app = FastAPI(title="Outreach Bot API", version="2.0.0")
 
 @app.head("/")
@@ -25,7 +28,7 @@ def health():
 
 
 from fastapi.staticfiles import StaticFiles
-app.mount("/static", StaticFiles(directory="src/static"), name="static")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 # Scheduler state variables
 last_checked_time = None
@@ -402,6 +405,16 @@ def send_lead_email(lead_id: int, req: SendEmailRequest = None):
         database.update_lead_status(lead_id, "failed_outreach")
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok"
+    }
+
 @app.get("/favicon.ico")
 def favicon():
-    return FileResponse("src/static/favicon.ico")
+    favicon_path = BASE_DIR / "static/favicon.ico"
+    if favicon_path.exists():
+        return FileResponse(favicon_path)
+    return {"status": "no icon"}
