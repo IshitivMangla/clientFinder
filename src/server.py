@@ -25,7 +25,7 @@ def health():
 
 
 from fastapi.staticfiles import StaticFiles
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
 
 # Scheduler state variables
 last_checked_time = None
